@@ -5,13 +5,15 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/appwrite-logo.png",
-    "scheme": "myapp",
+    "scheme": "voxcampus",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "com.voxcampus.app",
       "supportsTablet": true
     },
     "android": {
+      "package": "com.voxcampus.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/appwrite-logo.png",
         "backgroundColor": "#ffffff"

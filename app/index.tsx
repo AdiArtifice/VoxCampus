@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { Header } from "@/components/Header";
 import { useMemo, useRef, useState, useEffect } from "react";
@@ -17,6 +18,10 @@ import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Log } from "@/types/log";
 import { AppwriteException, Client } from "appwrite";
+import { useAuth } from "@/hooks/useAuth";
+import { LoginForm } from "@/components/auth/LoginForm";
+import { RegisterForm } from "@/components/auth/RegisterForm";
+import { Button } from "@/components/Button";
 
 const client = new Client()
   .setProject(process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID ?? "")
@@ -51,7 +56,7 @@ function ClientOnlyGestureHandler({ children }: { children: React.ReactNode }) {
   return <GestureHandlerRootView>{children}</GestureHandlerRootView>;
 }
 
-export default function HomeScreen() {
+function HomeScreen() {
   const [connectionState, setConnectionState] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
@@ -206,3 +211,75 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
 });
+
+function ProtectedContent() {
+  const { user, initializing, logout, refresh, sendVerificationEmail } = useAuth();
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [resending, setResending] = useState(false);
+
+  if (initializing) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  if (!user) {
+    return mode === 'login' ? (
+      <LoginForm onSwitchToRegister={() => setMode('register')} />
+    ) : (
+      <RegisterForm onSwitchToLogin={() => setMode('login')} />
+    );
+  }
+
+  const onResend = async () => {
+    try {
+      setResending(true);
+      await sendVerificationEmail();
+    } finally {
+      setResending(false);
+    }
+  };
+
+  return (
+    <View style={{ flex: 1 }}>
+      <View
+        style={{
+          padding: 12,
+          paddingHorizontal: 20,
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backgroundColor: '#F9F9FA',
+          borderBottomWidth: 1,
+          borderColor: '#EDEDF0',
+        }}
+      >
+        <Text style={{ fontSize: 14 }}>Welcome, {user.name || user.email}</Text>
+        <Button text={"Logout"} onPress={logout} />
+      </View>
+
+      {!user.emailVerification && (
+        <View style={{ padding: 12, backgroundColor: '#FFF8E1', borderBottomWidth: 1, borderColor: '#FFECB3' }}>
+          <Text style={{ color: '#8D6E63', marginBottom: 8 }}>
+            Your email is not verified. Please check your inbox and click the verification link.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <Button text={resending ? 'Sending…' : 'Resend verification email'} onPress={onResend} />
+            <View style={{ width: 12 }} />
+            <Button text={'Refresh status'} onPress={refresh} />
+          </View>
+        </View>
+      )}
+
+      <HomeScreen />
+    </View>
+  );
+}
+
+export default function Index() {
+  return (
+    <ProtectedContent />
+  );
+}
