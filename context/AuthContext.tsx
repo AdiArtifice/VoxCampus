@@ -4,7 +4,7 @@ import type { Models } from 'react-native-appwrite';
 import * as Linking from 'expo-linking';
 import { isSJCEMEmail } from '@/utils/validation';
 import { signInWithGoogle as doGoogleSignIn, parseOAuthCallbackUrl } from '@/features/auth/google';
-import { Alert, View, Text } from 'react-native';
+import { Alert, View, Text, Platform } from 'react-native';
 
 export type AuthUser = Models.User<Models.Preferences> | null;
 
@@ -120,9 +120,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Deep link handler for auth-callback (supports manual testing and cold/warm starts)
   const handlingRef = useRef(false);
+  const suppressAuthCallbackRef = useRef(false);
   const handleAuthCallbackUrl = useCallback(async (url: string) => {
     if (!url || handlingRef.current) return;
     if (!url.includes('auth-callback')) return;
+    // Skip handling on web where /auth-callback page manages it
+    if (Platform.OS === 'web') return;
+    // Suppress during in-flight native sign-in to prevent double consumption
+    if (suppressAuthCallbackRef.current) {
+      console.log('[AuthContext] Suppressing deep link handling during in-flight sign-in');
+      return;
+    }
     try {
       handlingRef.current = true;
       console.log('[AuthContext] Received URL:', url);
@@ -150,6 +158,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   useEffect(() => {
+    if (Platform.OS === 'web') {
+      return;
+    }
     const sub = Linking.addEventListener('url', ({ url }) => {
       handleAuthCallbackUrl(url);
     });
@@ -167,14 +178,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signInWithGoogle = useCallback(async () => {
     console.log('[AuthContext] signInWithGoogle start');
-    const { user: me } = await doGoogleSignIn(account);
-    if (!isSJCEMEmail(me.email)) {
-      await account.deleteSession('current');
-      throw new Error('Only sjcem.edu.in accounts are allowed.');
+    suppressAuthCallbackRef.current = true;
+    try {
+      const { user: me } = await doGoogleSignIn(account);
+      if (!isSJCEMEmail(me.email)) {
+        await account.deleteSession('current');
+        throw new Error('Only sjcem.edu.in accounts are allowed.');
+      }
+      // Set local state and return the authenticated user
+      setUser(me);
+      return me;
+    } finally {
+      suppressAuthCallbackRef.current = false;
     }
-    // Set local state and return the authenticated user
-    setUser(me);
-    return me;
   }, []);
 
   const value = useMemo(() => ({ user, initializing, login, register, logout, refresh, sendVerificationEmail, verifyEmail, signInWithGoogle }), [user, initializing, login, register, logout, refresh, sendVerificationEmail, verifyEmail, signInWithGoogle]);
