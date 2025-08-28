@@ -1,6 +1,8 @@
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Account, OAuthProvider } from 'react-native-appwrite';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // Debug helper
 const log = (...args: any[]) => console.log('[GoogleAuth]', ...args);
@@ -13,8 +15,19 @@ export type OAuthCallbackParams = {
 export const ALLOWED_DOMAIN = 'sjcem.edu.in';
 
 export function buildRedirectUrl() {
-  // Platform-aware deep link. On native uses configured app scheme; on web becomes an http(s) route handled by Expo Router.
-  const url = Linking.createURL('auth-callback');
+  // On web use http(s) route; in Expo Go use exp://; in standalone/dev client use custom scheme.
+  const ownership = (Constants as any)?.appOwnership as string | undefined;
+  let url: string;
+  if (Platform.OS === 'web') {
+    url = Linking.createURL('auth-callback');
+  } else if (ownership === 'expo') {
+    // Expo Go requires exp:// return URL for proper handoff
+    url = Linking.createURL('auth-callback');
+  } else {
+    // Standalone/dev client with custom scheme
+    url = Linking.createURL('auth-callback', { scheme: 'voxcampus' });
+  }
+  log('App ownership:', ownership);
   log('Built redirect URL:', url);
   return url;
 }
@@ -52,11 +65,21 @@ export async function signInWithGoogle(account: Account) {
   log('Creating OAuth2 token with Appwrite...');
   const provider = (OAuthProvider as any)?.Google ?? 'google';
   const token = await account.createOAuth2Token(provider as any, success, failure);
-  const loginUrl: string = (token as any)?.url ?? (token as unknown as string);
+  // Coerce possible URL object to primitive string to satisfy native bridge
+  let loginUrl: string;
+  const t: any = token;
+  if (typeof t === 'string') {
+    loginUrl = t;
+  } else if (t?.url) {
+    loginUrl = typeof t.url === 'string' ? t.url : (t.url?.toString?.() ?? t.url?.href ?? String(t.url));
+  } else {
+    loginUrl = String(t);
+  }
   if (!loginUrl) {
     throw new Error('Failed to obtain OAuth URL');
   }
   log('Opening OAuth URL in browser:', loginUrl);
+  log('Auth URL typeof:', typeof loginUrl);
 
   // 3) Prepare deep-link listener to catch the redirect regardless of platform behavior
   let receivedUrl: string | undefined;

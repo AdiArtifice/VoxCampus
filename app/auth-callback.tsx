@@ -1,14 +1,33 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Platform, View, Text, ActivityIndicator } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { account } from '@/lib/appwrite';
 import { Button } from '@/components/Button';
 
+// Close the popup/tab on web once the redirect page loads
+if (Platform.OS === 'web') {
+  try { WebBrowser.maybeCompleteAuthSession(); } catch {}
+}
+
 const log = (...args: any[]) => console.log('[AuthCallbackWeb]', ...args);
 
 export default function AuthCallback() {
   const router = useRouter();
+  const isWeb = Platform.OS === 'web';
+
+  // On native, immediately route back to Home and render nothing
+  React.useEffect(() => {
+    if (!isWeb) {
+      console.log('[AuthCallbackWeb] Native platform detected; replacing route to home.');
+      try { router.replace('/'); } catch {}
+    }
+  }, [isWeb, router]);
+
+  if (!isWeb) {
+    return null;
+  }
   const { user, refresh } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(true);
