@@ -13,11 +13,14 @@ export const COLORS = {
   profileBlue: '#3B82F6'
 };
 
+// Use available fonts from the project
 export const FONTS = {
-  heading: 'Neuton',
-  body: 'Itim',
-  stencil: 'Stardos Stencil',
-  regular: 'Inter_400Regular'
+  heading: 'Inter_400Regular',
+  body: 'Inter_400Regular',
+  stencil: 'Inter_400Regular',
+  regular: 'Inter_400Regular',
+  light: 'Inter_300Light',
+  poppins: 'Poppins_300Light'
 };
 
 export const SIZES = {

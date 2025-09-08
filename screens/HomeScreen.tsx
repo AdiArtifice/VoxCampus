@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
-import { COLORS, FONTS, SIZES } from '@/constants/theme';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { COLORS, SIZES } from '@/constants/theme';
 import PostCard from '@/components/PostCard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -32,23 +32,7 @@ const mockPosts = [
 
 const HomeScreen = () => {
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.logoContainer}>
-          <Image 
-            source={require('@/assets/images/rn.png')}
-            style={styles.profileImage}
-          />
-        </View>
-        <View style={styles.titleContainer}>
-          <Image 
-            source={require('@/assets/images/appwrite-logo.png')}
-            style={{ width: 25, height: 25 }}
-          />
-          <Text style={styles.title}>VoxCampus</Text>
-        </View>
-      </View>
-
+    <SafeAreaView style={styles.container} edges={['right', 'left']}>
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -77,33 +61,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.white
-  },
-  header: {
-    height: 71,
-    backgroundColor: COLORS.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SIZES.md
-  },
-  logoContainer: {
-    width: 54,
-    height: 53,
-    marginRight: SIZES.md
-  },
-  profileImage: {
-    width: 54,
-    height: 53,
-    borderRadius: 10
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SIZES.sm
-  },
-  title: {
-    fontFamily: FONTS.stencil,
-    fontSize: 30,
-    color: COLORS.secondary
   },
   scrollView: {
     flex: 1

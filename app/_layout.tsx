@@ -2,45 +2,52 @@ import { Slot } from "expo-router";
 import { Platform, View, Text } from "react-native";
 import { 
   Poppins_300Light, 
-  useFonts 
+  useFonts as usePoppinsFonts 
 } from "@expo-google-fonts/poppins";
 import { 
   Inter_400Regular, 
-  Inter_300Light 
+  Inter_300Light,
+  useFonts as useInterFonts
 } from "@expo-google-fonts/inter";
-import { 
-  Itim_400Regular 
-} from "@expo-google-fonts/itim";
-import { 
-  Neuton_400Regular 
-} from "@expo-google-fonts/neuton";
-import { 
-  StardosStencil_400Regular 
-} from "@expo-google-fonts/stardos-stencil";
 import Head from "expo-router/head";
 import React, { useEffect } from "react";
 import { AuthProvider, ProviderGuard } from "@/context/AuthContext";
-import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from "expo-status-bar";
+import { ActivityIndicator } from "react-native";
+import * as SplashScreen from 'expo-splash-screen';
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
+  // Load only the fonts that are available
+  const [poppinsLoaded] = usePoppinsFonts({
     Poppins_300Light,
-    Inter_400Regular,
-    Inter_300Light,
-    Itim_400Regular,
-    Neuton_400Regular,
-    StardosStencil_400Regular,
-    // Aliases for easier use in styles
-    Itim: Itim_400Regular,
-    Neuton: Neuton_400Regular,
-    'Stardos Stencil': StardosStencil_400Regular,
   });
 
+  const [interLoaded] = useInterFonts({
+    Inter_400Regular,
+    Inter_300Light,
+  });
+
+  // Determine if all fonts are loaded
+  const fontsLoaded = poppinsLoaded && interLoaded;
+
+  // After fonts are loaded, hide the splash screen
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
   // Show loading screen while fonts are loading
-  if (!fontsLoaded && !fontError) {
-    return null;
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#4682B4" />
+      </View>
+    );
   }
 
   return (
@@ -63,9 +70,7 @@ export default function RootLayout() {
             </View>
           )}
           <ProviderGuard>
-            <NavigationContainer>
-              <Slot />
-            </NavigationContainer>
+            <Slot />
           </ProviderGuard>
         </AuthProvider>
       </View>
