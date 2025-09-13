@@ -1,10 +1,10 @@
-import React from 'react';
+import type React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackHeaderProps } from '@react-navigation/native-stack';
 import { COLORS, FONTS, SIZES } from '@/constants/theme';
 
-const AppHeader: React.FC<NativeStackHeaderProps> = ({ navigation }) => {
+const AppHeader = ({ navigation }: NativeStackHeaderProps) => {
   const navigateToProfile = () => {
     // Navigate on the current stack to the Profile screen
     navigation.navigate('Profile' as never);
