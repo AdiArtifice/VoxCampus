@@ -14,6 +14,8 @@ export type MainTabParamList = {
 export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabParamList>;
   PendingRequests: undefined;
+  Auth: undefined;
+  Profile: undefined;
   ClubDetails: { id: string; name: string };
   EventDetails: { id: string; title: string };
   CreatePost: undefined;

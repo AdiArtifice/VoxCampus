@@ -1,12 +1,10 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { TouchableOpacity } from 'react-native';
 import { COLORS } from '@/constants/theme';
 import HomeScreen from '@/screens/HomeScreen';
 import ExploreScreen from '@/screens/ExploreScreen';
 import ConnectScreen from '@/screens/ConnectScreen';
 import AssociationsScreen from '@/screens/AssociationsScreen';
-import ProfileScreen from '@/screens/ProfileScreen';
 import TabBar from '@/components/TabBar';
 import { MainTabParamList } from './types';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,7 +17,7 @@ const AddScreen = () => {
   return null;
 };
 
-// Profile launcher that navigates to the Profile screen
+// Profile launcher (hidden in tab bar). Navigation handled via top header.
 const ProfileLauncher = () => {
   const navigation = useNavigation();
   const { user } = useAuth();

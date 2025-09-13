@@ -9,6 +9,7 @@ import { ActivityIndicator, View, Text } from 'react-native';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { RegisterForm } from '@/components/auth/RegisterForm';
 import { Button } from '@/components/Button';
+import AppHeader from '@/components/AppHeader';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -90,9 +91,17 @@ const RootNavigator = () => {
       ) : (
         // App screens
         <>
-          <Stack.Screen name="Main" component={MainTabNavigator} />
+          <Stack.Screen 
+            name="Main" 
+            component={MainTabNavigator} 
+            options={{ headerShown: true, header: (props) => <AppHeader {...props} /> }}
+          />
           <Stack.Screen name="PendingRequests" component={PendingRequestsScreen} />
-          <Stack.Screen name="Profile" component={ProfileScreen} />
+          <Stack.Screen 
+            name="Profile" 
+            component={ProfileScreen} 
+            options={{ headerShown: true, header: (props) => <AppHeader {...props} /> }}
+          />
         </>
       )}
     </Stack.Navigator>

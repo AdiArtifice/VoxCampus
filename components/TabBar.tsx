@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { COLORS, SIZES, FONTS } from '@/constants/theme';
 import IconHome from '@/assets/images/IconHome';
@@ -7,35 +7,13 @@ import IconExplore from '@/assets/images/IconExplore';
 import IconAdd from '@/assets/images/IconAdd';
 import IconConnect from '@/assets/images/IconConnect';
 import IconAssociations from '@/assets/images/IconAssociations';
-import { useNavigation } from '@react-navigation/native';
-import { useAuth } from '@/hooks/useAuth';
+// no auth needed in tab bar
 
 const TabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
-  const { user } = useAuth();
-  const mainNavigation = useNavigation();
-
-  const navigateToProfile = () => {
-    mainNavigation.navigate('Profile');
-  };
+  // no-op
 
   return (
     <View style={styles.tabBarContainer}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.profileButton} onPress={navigateToProfile}>
-          <Image 
-            source={require('@/assets/images/rn.png')} 
-            style={styles.profileImage} 
-          />
-        </TouchableOpacity>
-        <View style={styles.logoContainer}>
-          <Image 
-            source={require('@/assets/images/appwrite-logo.png')}
-            style={{ width: 25, height: 25 }}
-          />
-          <Text style={styles.headerTitle}>VoxCampus</Text>
-        </View>
-      </View>
-
       <View style={styles.container}>
         {state.routes.map((route, index) => {
           // Skip the Profile tab in the tab bar
@@ -106,33 +84,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.lightGray,
   },
-  header: {
-    height: 71,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SIZES.md,
-  },
-  profileButton: {
-    width: 54,
-    height: 53,
-    marginRight: SIZES.md,
-  },
-  profileImage: {
-    width: 54,
-    height: 53,
-    borderRadius: 10,
-  },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SIZES.sm,
-  },
-  headerTitle: {
-    fontFamily: FONTS.regular,
-    fontSize: 30,
-    color: COLORS.secondary,
-    fontWeight: 'bold',
-  },
+  // header styles removed; header is now a separate top component
   container: {
     flexDirection: 'row',
     backgroundColor: COLORS.primary,
