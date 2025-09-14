@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackHeaderProps } from '@react-navigation/native-stack';
 import { COLORS, FONTS, SIZES } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
 
 const AppHeader: React.FC<NativeStackHeaderProps> = ({ navigation }) => {
   const navigateToProfile = () => {
@@ -13,19 +14,23 @@ const AppHeader: React.FC<NativeStackHeaderProps> = ({ navigation }) => {
   return (
     <SafeAreaView edges={["top"]} style={styles.wrapper}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.profileButton} onPress={navigateToProfile}>
-          <Image
-            source={require('@/assets/images/rn.png')}
-            style={styles.profileImage}
-          />
+        <TouchableOpacity
+          style={styles.profileButton}
+          onPress={navigateToProfile}
+          accessibilityRole="button"
+          accessibilityLabel="Open profile"
+        >
+          <View style={styles.profileIconWrap}>
+            <Ionicons name="person" size={28} color={COLORS.white} />
+          </View>
         </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open profile" onPress={navigateToProfile} style={styles.logoContainer}>
+        <View style={styles.logoContainer}>
           <Image
             source={require('@/assets/images/appwrite-logo.png')}
             style={{ width: 25, height: 25 }}
           />
           <Text style={styles.headerTitle}>VoxCampus</Text>
-        </TouchableOpacity>
+        </View>
         {/* Right spacer to balance layout */}
         <View style={{ width: 54, height: 53 }} />
       </View>
@@ -49,17 +54,21 @@ const styles = StyleSheet.create({
     height: 53,
     marginRight: SIZES.md,
     cursor: 'pointer' as any,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  profileImage: {
-    width: 54,
-    height: 53,
-    borderRadius: 10,
+  profileIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SIZES.sm,
-    cursor: 'pointer' as any,
   },
   headerTitle: {
     fontFamily: FONTS.regular,
