@@ -1,4 +1,4 @@
-import type React from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { COLORS, FONTS, SIZES } from '@/constants/theme';
 
@@ -9,12 +9,12 @@ type ProfileHeaderProps = {
   avatar?: string;
 };
 
-const ProfileHeader = ({
+const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   name,
   college = 'SJCEM',
   description = 'Student at St. John College of Engineering and Management',
   avatar
-}: ProfileHeaderProps) => {
+}) => {
   return (
     <View style={styles.container}>
       <View style={styles.headerBackground}>

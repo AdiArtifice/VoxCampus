@@ -4,8 +4,8 @@ import Svg, { SvgProps, Path } from "react-native-svg";
 export function IconAssociations(props: SvgProps) {
   return (
     <Svg
-      width={24}
-      height={24}
+      width={30}
+      height={30}
       viewBox="0 0 30 30"
       fill="none"
       {...props}

@@ -1,6 +1,6 @@
-import type React from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { COLORS, SIZES, FONTS } from '@/constants/theme';
 import IconHome from '@/assets/images/IconHome';
 import IconExplore from '@/assets/images/IconExplore';
@@ -9,8 +9,7 @@ import IconConnect from '@/assets/images/IconConnect';
 import IconAssociations from '@/assets/images/IconAssociations';
 // no auth needed in tab bar
 
-const TabBar = ({ state, descriptors, navigation }: BottomTabBarProps) => {
-  const ICON_SIZE = 24; // reduced from 30 to avoid overflow on mobile
+const TabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
   // no-op
 
   return (
@@ -39,19 +38,19 @@ const TabBar = ({ state, descriptors, navigation }: BottomTabBarProps) => {
           let icon;
           switch (route.name) {
             case 'Home':
-              icon = <IconHome width={ICON_SIZE} height={ICON_SIZE} color={isFocused ? COLORS.black : COLORS.black} />;
+              icon = <IconHome color={isFocused ? COLORS.black : COLORS.black} />;
               break;
             case 'Explore':
-              icon = <IconExplore width={ICON_SIZE} height={ICON_SIZE} color={isFocused ? COLORS.black : COLORS.black} />;
+              icon = <IconExplore color={isFocused ? COLORS.black : COLORS.black} />;
               break;
             case 'Add':
-              icon = <IconAdd width={ICON_SIZE} height={ICON_SIZE} color={isFocused ? COLORS.black : COLORS.black} />;
+              icon = <IconAdd color={isFocused ? COLORS.black : COLORS.black} />;
               break;
             case 'Connect':
-              icon = <IconConnect width={ICON_SIZE} height={ICON_SIZE} color={isFocused ? COLORS.black : COLORS.black} />;
+              icon = <IconConnect color={isFocused ? COLORS.black : COLORS.black} />;
               break;
             case 'Associations':
-              icon = <IconAssociations width={ICON_SIZE} height={ICON_SIZE} color={isFocused ? COLORS.black : COLORS.black} />;
+              icon = <IconAssociations color={isFocused ? COLORS.black : COLORS.black} />;
               break;
             default:
               icon = null;
@@ -96,10 +95,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 2,
+    paddingVertical: SIZES.xs,
   },
   tabText: {
-    fontSize: 13,
+    fontSize: 15,
     fontFamily: FONTS.regular,
     marginTop: 4,
   }

@@ -1,4 +1,4 @@
-import type React from 'react';
+import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { COLORS } from '@/constants/theme';
 import HomeScreen from '@/screens/HomeScreen';
@@ -9,7 +9,6 @@ import TabBar from '@/components/TabBar';
 import { MainTabParamList } from './types';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigation } from '@react-navigation/native';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -45,15 +44,15 @@ const MainTabNavigator = () => {
           borderTopColor: COLORS.lightGray,
         }
       }}
-      tabBar={(props: BottomTabBarProps) => <TabBar {...props} />}
+      tabBar={props => <TabBar {...props} />}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Explore" component={ExploreScreen} />
       <Tab.Screen 
         name="Add" 
         component={AddScreen} 
-        listeners={({ navigation }: { navigation: any }) => ({
-          tabPress: (e: { preventDefault: () => void }) => {
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
             // Prevent default action
             e.preventDefault();
             // Create post flow would go here
