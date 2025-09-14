@@ -11,6 +11,7 @@ import IconAssociations from '@/assets/images/IconAssociations';
 
 const TabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
   // no-op
+  const ICON_SIZE = 20;
 
   return (
     <View style={styles.tabBarContainer}>
@@ -38,19 +39,19 @@ const TabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation })
           let icon;
           switch (route.name) {
             case 'Home':
-              icon = <IconHome color={isFocused ? COLORS.black : COLORS.black} />;
+              icon = <IconHome width={ICON_SIZE} height={ICON_SIZE} color={isFocused ? COLORS.black : COLORS.black} />;
               break;
             case 'Explore':
-              icon = <IconExplore color={isFocused ? COLORS.black : COLORS.black} />;
+              icon = <IconExplore width={ICON_SIZE} height={ICON_SIZE} color={isFocused ? COLORS.black : COLORS.black} />;
               break;
             case 'Add':
-              icon = <IconAdd color={isFocused ? COLORS.black : COLORS.black} />;
+              icon = <IconAdd width={ICON_SIZE} height={ICON_SIZE} color={isFocused ? COLORS.black : COLORS.black} />;
               break;
             case 'Connect':
-              icon = <IconConnect color={isFocused ? COLORS.black : COLORS.black} />;
+              icon = <IconConnect width={ICON_SIZE} height={ICON_SIZE} color={isFocused ? COLORS.black : COLORS.black} />;
               break;
             case 'Associations':
-              icon = <IconAssociations color={isFocused ? COLORS.black : COLORS.black} />;
+              icon = <IconAssociations width={ICON_SIZE} height={ICON_SIZE} color={isFocused ? COLORS.black : COLORS.black} />;
               break;
             default:
               icon = null;
@@ -64,10 +65,15 @@ const TabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation })
               style={styles.tabButton}
             >
               {icon}
-              <Text style={[
+              <Text
+                style={[
                 styles.tabText,
                 { color: isFocused ? COLORS.black : COLORS.black }
-              ]}>
+              ]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                allowFontScaling={false}
+              >
                 {label as string}
               </Text>
             </TouchableOpacity>
@@ -96,11 +102,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: SIZES.xs,
+    gap: 2,
+    minWidth: 0, // allow text to truncate within flex item
   },
   tabText: {
-    fontSize: 15,
+    fontSize: 11,
     fontFamily: FONTS.regular,
-    marginTop: 4,
+    marginTop: 1,
+    textAlign: 'center',
+    lineHeight: 13,
+    alignSelf: 'center',
   }
 });
 

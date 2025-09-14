@@ -60,15 +60,6 @@ export default function RootLayout() {
           </Head>
         )}
         <AuthProvider>
-          {/* Dev banner to quickly detect provider presence */}
-          {__DEV__ && (
-            <View
-              pointerEvents="none"
-              style={{ position: "absolute", top: 0, left: 0, right: 0, backgroundColor: "#E3F2FD", paddingVertical: 2, borderBottomWidth: 1, borderColor: "#BBDEFB", zIndex: 9999 }}
-            >
-              <Text style={{ textAlign: "center", color: "#1565C0", fontSize: 10 }}>AuthProvider mounted</Text>
-            </View>
-          )}
           <ProviderGuard>
             <Slot />
           </ProviderGuard>
