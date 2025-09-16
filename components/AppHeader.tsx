@@ -1,5 +1,6 @@
-import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import MaskedView from '@react-native-masked-view/masked-view';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackHeaderProps } from '@react-navigation/native-stack';
 import { COLORS, FONTS, SIZES } from '@/constants/theme';
@@ -29,7 +30,17 @@ const AppHeader: React.FC<NativeStackHeaderProps> = ({ navigation }) => {
             source={require('@/assets/images/appwrite-logo.png')}
             style={{ width: 25, height: 25 }}
           />
-          <Text style={styles.headerTitle}>VoxCampus</Text>
+          <MaskedView
+            maskElement={<Text style={styles.headerTitle}>VoxCampus</Text>}
+          >
+            <LinearGradient
+              colors={['#7C3AED', '#A78BFA']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={[styles.headerTitle, { opacity: 0 }]}>VoxCampus</Text>
+            </LinearGradient>
+          </MaskedView>
         </View>
         {/* Right spacer to balance layout */}
         <View style={{ width: 54, height: 53 }} />
@@ -73,8 +84,8 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: FONTS.regular,
     fontSize: 30,
-    color: COLORS.secondary,
     fontWeight: 'bold',
+    color: 'black', // Mask text color
   },
 });
 
