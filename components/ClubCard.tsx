@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { COLORS, FONTS, SIZES } from '@/constants/theme';
 
@@ -9,11 +9,13 @@ type ClubCardProps = {
 };
 
 const ClubCard: React.FC<ClubCardProps> = ({ name, logo, onPress }) => {
+  const [failed, setFailed] = useState(false);
+  const handleError = useCallback(() => setFailed(true), []);
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.8}>
       <View style={styles.logoContainer}>
-        {logo ? (
-          <Image source={{ uri: logo }} style={styles.logo} resizeMode="contain" />
+        {logo && !failed ? (
+          <Image source={{ uri: logo }} style={styles.logo} resizeMode="contain" onError={handleError} />
         ) : (
           <View style={styles.logoPlaceholder} />
         )}
