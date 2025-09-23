@@ -30,6 +30,7 @@ const AssociationsScreen = () => {
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState<string | null>(null);
   const [joined, setJoined] = useState(false);
+  const [myAssociationId, setMyAssociationId] = useState<string | null>(null);
 
   // Followed Associations state
   const [followedIds, setFollowedIds] = useState<string[]>([]);
@@ -109,6 +110,9 @@ const AssociationsScreen = () => {
           ? ((prefs as any).followedAssociations as string[])
           : [];
         setFollowedIds(ids);
+        const myAssocId = (prefs as any).myAssociationId as string | undefined;
+        setJoined(!!myAssocId);
+        setMyAssociationId(myAssocId ?? null);
       } catch {
         // non-fatal
       }
@@ -161,14 +165,23 @@ const AssociationsScreen = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>My Associations</Text>
           <View style={styles.clubsRow}>
-            <ClubCard
-              name={joined ? 'My Association (Joined)' : 'My Association'}
-              onPress={() => {
-                setVerifyMsg(null);
-                setSelectedAssocId(null);
-                setModalVisible(true);
-              }}
-            />
+            {(() => {
+              const myAssoc = associations.find(a => a.$id === myAssociationId);
+              const logo = myAssoc ? (resolveImage(myAssoc.images) || placeholder) : undefined;
+              return (
+                <ClubCard
+                  name={myAssoc ? myAssoc.name : ''}
+                  showName={!!myAssoc}
+                  smallName={false}
+                  logo={logo}
+                  onPress={() => {
+                    setVerifyMsg(null);
+                    setSelectedAssocId(null);
+                    setModalVisible(true);
+                  }}
+                />
+              );
+            })()}
           </View>
         </View>
 
@@ -211,20 +224,22 @@ const AssociationsScreen = () => {
           )}
           {!loading && !error && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-              {associations.length === 0 ? (
+              {associations.filter(a => (a.name || '').trim().toLowerCase() !== 'sjcem').length === 0 ? (
                 <View style={styles.stateWrap}><Text style={styles.stateText}>No associations found.</Text></View>
               ) : (
-                associations.map((assoc) => {
-                  const img = resolveImage(assoc.images) || placeholder;
-                  return (
-                    <ClubCard
-                      key={assoc.$id}
-                      name={assoc.name}
-                      logo={img}
-                      onPress={() => console.log(`SJCEM association pressed: ${assoc.name}`)}
-                    />
-                  );
-                })
+                associations
+                  .filter(a => (a.name || '').trim().toLowerCase() !== 'sjcem')
+                  .map((assoc) => {
+                    const img = resolveImage(assoc.images) || placeholder;
+                    return (
+                      <ClubCard
+                        key={assoc.$id}
+                        name={assoc.name}
+                        logo={img}
+                        onPress={() => console.log(`SJCEM association pressed: ${assoc.name}`)}
+                      />
+                    );
+                  })
               )}
             </ScrollView>
           )}
@@ -270,20 +285,29 @@ const AssociationsScreen = () => {
                   setVerifying(true);
                   setVerifyMsg(null);
                   try {
-                    const email = user.email as string;
+                    const email = (user.email as string) ?? '';
+                    const candidates = Array.from(new Set([
+                      email,
+                      email.toLowerCase?.() ?? email,
+                      (user.$id as string) ?? ''
+                    ].filter(Boolean)));
                     const res = await databases.listDocuments(databaseId, membershipCollectionId, [
-                      Query.equal('userId', email),
+                      Query.equal('userId', candidates),
                       Query.equal('orgId', selectedAssocId),
                       Query.limit(1)
                     ]);
                     if ((res.total ?? 0) > 0) {
                       setJoined(true);
                       setVerifyMsg('Joined');
+                      try {
+                        await account.updatePrefs({ myAssociationId: selectedAssocId });
+                        setMyAssociationId(selectedAssocId);
+                      } catch {}
                     } else {
                       const assoc = associations.find(x => x.$id === selectedAssocId);
-                      const t = assoc?.type ?? 'association';
+                      const t = assoc?.name ?? assoc?.type ?? 'association';
                       setJoined(false);
-                      setVerifyMsg(`You're not the member of '${t}'.`);
+                      setVerifyMsg(`You're not a member of '${t}'.`);
                     }
                   } catch (e: any) {
                     setVerifyMsg(e?.message ?? 'Unable to verify membership.');

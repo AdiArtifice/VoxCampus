@@ -6,9 +6,11 @@ type ClubCardProps = {
   name: string;
   logo?: string;
   onPress?: () => void;
+  showName?: boolean; // optional: hide name text when false
+  smallName?: boolean; // optional: render smaller name text
 };
 
-const ClubCard: React.FC<ClubCardProps> = ({ name, logo, onPress }) => {
+const ClubCard: React.FC<ClubCardProps> = ({ name, logo, onPress, showName = true, smallName = false }) => {
   const [failed, setFailed] = useState(false);
   const handleError = useCallback(() => setFailed(true), []);
   return (
@@ -20,7 +22,9 @@ const ClubCard: React.FC<ClubCardProps> = ({ name, logo, onPress }) => {
           <View style={styles.logoPlaceholder} />
         )}
       </View>
-      <Text style={styles.name}>{name}</Text>
+      {showName ? (
+        <Text style={[styles.name, smallName && styles.nameSmall]} numberOfLines={2}>{name}</Text>
+      ) : null}
     </TouchableOpacity>
   );
 };
@@ -56,6 +60,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     textAlign: 'center',
     color: COLORS.black
+  },
+  nameSmall: {
+    fontSize: 12
   }
 });
 
