@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Modal, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Modal, TouchableOpacity, Image, Pressable, Linking } from 'react-native';
 import { COLORS, FONTS, SIZES } from '@/constants/theme';
 import ClubCard from '@/components/ClubCard';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -38,6 +38,36 @@ const AssociationsScreen = () => {
   const [draftFollowIds, setDraftFollowIds] = useState<Set<string>>(new Set());
   const [followSaving, setFollowSaving] = useState(false);
   const [followMsg, setFollowMsg] = useState<string | null>(null);
+
+  // Association details modal
+  const [selectedAssoc, setSelectedAssoc] = useState<AssociationDoc | null>(null);
+
+  // Fallback overrides based on provided clubs JSON (used only if backend fields are missing)
+  const clubOverrides = useMemo(() => ({
+    'association-ascai': {
+      description: 'Association of Students in Computer and Artificial Intelligence.',
+      founded_year: '2022',
+      faculty_coordinator_name: 'Prof.Sandeep Dwivedi',
+      faculty_coordinator_email: 'anjali.sharma@college.edu',
+      committee_core_team: [
+        { profile_id: 'u101', name: 'Hiten Champanerkar', year: '4th Year', role: 'President', profile_pic: 'https://example.com/users/rohan.jpg' },
+        { profile_id: 'u102', name: 'Priti Singh', year: '3rd Year', role: 'Vice President', profile_pic: 'https://example.com/users/nidhi.jpg' },
+      ],
+      instagram: 'https://www.instagram.com/ascai_sjcem?igsh=MThzcjQ5OXJrMDM1OQ==',
+      linkedin: 'https://www.linkedin.com/company/ascai-sjcem/',
+      website: 'https://ascai-ai.vercel.app/',
+    },
+    'association-itsa': {
+      description: 'A community for students passionate about Information Technology and related fields.',
+      founded_year: '2015',
+      committee_core_team: [
+        { profile_id: 'u201', name: 'Priya Singh', year: '3rd Year', role: 'President', profile_pic: 'https://example.com/users/priya.jpg' },
+      ],
+      instagram: 'https://www.instagram.com/itsa_sjcem?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==',
+      linkedin: 'https://linkedin.com/company/itsa',
+      website: 'https://itsa.college.edu',
+    },
+  } as Record<string, any>), []);
 
   const databaseId = (process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID as string) || '68c58e83000a2666b4d9';
   const associationCollectionId = (process.env.EXPO_PUBLIC_APPWRITE_ASSOCIATION_COLLECTION_ID as string) || 'association';
@@ -99,6 +129,8 @@ const AssociationsScreen = () => {
       try { unsubscribe(); } catch {}
     };
   }, []);
+
+  // No separate clubs load: we show details from Association docs directly
 
   // Load followed associations from user prefs
   useEffect(() => {
@@ -236,7 +268,12 @@ const AssociationsScreen = () => {
                         key={assoc.$id}
                         name={assoc.name}
                         logo={img}
-                        onPress={() => console.log(`SJCEM association pressed: ${assoc.name}`)}
+                        onPress={() => {
+                          const allowed = new Set(['association-ascai', 'association-itsa', 'association-spca', 'association-mesa']);
+                          if (allowed.has(assoc.$id)) {
+                            setSelectedAssoc(assoc);
+                          }
+                        }}
                       />
                     );
                   })
@@ -360,6 +397,93 @@ const AssociationsScreen = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Association details modal */}
+      <Modal
+        visible={!!selectedAssoc}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setSelectedAssoc(null)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setSelectedAssoc(null)}>
+          <Pressable style={[styles.modalCard, { maxWidth: 560 }]} onPress={(e) => e.stopPropagation()}>
+            {!!selectedAssoc && (() => {
+              const override = clubOverrides[selectedAssoc.$id] || {};
+              const merged: any = { ...selectedAssoc, ...override };
+              const img = resolveImage(merged.images);
+              const title = merged.name || '';
+              const description = merged.description;
+              const founded = merged.founded_year ?? merged.foundedYear;
+              const facultyName = merged.faculty_coordinator_name ?? merged.facultyCoordinatorName;
+              const facultyEmail = merged.faculty_coordinator_email ?? merged.facultyCoordinatorEmail;
+              let core: any[] = [];
+              try {
+                if (Array.isArray(merged.committee_core_team)) core = merged.committee_core_team;
+                else if (typeof merged.committee_core_team === 'string') {
+                  const parsed = JSON.parse(merged.committee_core_team);
+                  if (Array.isArray(parsed)) core = parsed;
+                }
+              } catch {}
+              const findFromDesc = (pattern: RegExp): string | null => {
+                if (!description) return null;
+                const m = description.match(pattern);
+                return m ? m[0] : null;
+              };
+              const ig = merged.instagram ?? findFromDesc(/https?:\/\/\S*instagram\.com\S*/i);
+              const li = merged.linkedin ?? findFromDesc(/https?:\/\/\S*linkedin\.com\S*/i);
+              const web = merged.website ?? findFromDesc(/https?:\/\/(?!\S*(instagram|linkedin)\.com)\S+/i);
+              return (
+                <View>
+                  <View style={{ alignItems: 'center', marginBottom: SIZES.sm }}>
+                    {img ? <Image source={{ uri: img }} style={[styles.clubLogo, { width: 96, height: 96 }]} /> : null}
+                    <Text style={styles.modalTitle}>{title}</Text>
+                  </View>
+                  {!!description && (
+                    <Text style={[styles.stateText, { color: COLORS.black, marginBottom: SIZES.sm, textAlign: 'center' }]}>{description}</Text>
+                  )}
+                  {!!founded && (
+                    <Text style={[styles.stateText, { color: COLORS.black }]}> <Text style={{ fontFamily: FONTS.heading }}>Founded:</Text> {founded}</Text>
+                  )}
+                  {(facultyName || facultyEmail) && (
+                    <Text style={[styles.stateText, { color: COLORS.black, marginTop: SIZES.xs }]}>
+                      <Text style={{ fontFamily: FONTS.heading }}>Faculty Coordinator:</Text> {facultyName ?? '—'}{facultyEmail ? ' ' : ''}
+                      {facultyEmail ? (
+                        <Text style={{ color: '#2762e2' }} onPress={() => Linking.openURL(`mailto:${facultyEmail}`)}>({facultyEmail})</Text>
+                      ) : null}
+                    </Text>
+                  )}
+                  {core.length > 0 && (
+                    <View style={{ marginTop: SIZES.sm }}>
+                      <Text style={[styles.sectionTitle, { fontSize: 20, paddingHorizontal: 0, marginBottom: SIZES.xs, textAlign: 'left' }]}>Core Team</Text>
+                      {core.map((m: any) => (
+                        <View key={m.profile_id ?? m.name} style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 6 }}>
+                          {m.profile_pic ? (
+                            <Image source={{ uri: m.profile_pic }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 10 }} />
+                          ) : (
+                            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#EEE', marginRight: 10 }} />
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontFamily: FONTS.heading, color: COLORS.black }}>{m.name} {m.role ? `• ${m.role}` : ''}</Text>
+                            {!!m.year && <Text style={styles.stateText}>{m.year}</Text>}
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  <View style={[styles.clubLinks, { marginTop: SIZES.md }]}>
+                    {ig ? <Text style={styles.linkPill} onPress={() => Linking.openURL(ig)}>Instagram</Text> : null}
+                    {li ? <Text style={[styles.linkPill, styles.linkPillLinkedIn]} onPress={() => Linking.openURL(li)}>LinkedIn</Text> : null}
+                    {web ? <Text style={[styles.linkPill, styles.linkPillWebsite]} onPress={() => Linking.openURL(web)}>Website</Text> : null}
+                  </View>
+                  <View style={{ alignItems: 'flex-end', marginTop: SIZES.md }}>
+                    <Button text="Close" onPress={() => setSelectedAssoc(null)} />
+                  </View>
+                </View>
+              );
+            })()}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -442,6 +566,69 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     marginTop: SIZES.md
+  },
+  // CSS-inspired styles for clubs grid and card
+  clubsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 20,
+    justifyContent: 'center',
+    paddingHorizontal: SIZES.md,
+  },
+  clubCard: {
+    width: 300,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  clubLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 15,
+    resizeMode: 'contain',
+  },
+  clubTitle: {
+    fontSize: 20,
+    color: '#2762e2',
+    marginBottom: 10,
+    fontFamily: FONTS.heading,
+    textAlign: 'center',
+  },
+  clubDesc: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 8,
+    fontFamily: FONTS.body,
+    textAlign: 'center',
+  },
+  clubLinks: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  linkPill: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#E1306C',
+    color: 'white',
+    borderRadius: 6,
+    fontSize: 13,
+    overflow: 'hidden',
+  },
+  linkPillLinkedIn: {
+    backgroundColor: '#0077b5',
+  },
+  linkPillWebsite: {
+    backgroundColor: '#2762e2',
   }
 });
 
