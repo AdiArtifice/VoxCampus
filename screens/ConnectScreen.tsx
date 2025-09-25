@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { COLORS, FONTS, SIZES } from '@/constants/theme';
-import IconArrowRight from '@/assets/images/IconArrowRight';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { client, account } from '@/lib/appwrite';
@@ -51,6 +50,7 @@ const ConnectScreen = () => {
   const [recommended, setRecommended] = useState<any[]>([]);
   const [recLoading, setRecLoading] = useState<boolean>(false);
   const [recError, setRecError] = useState<string | null>(null);
+  const { width } = useWindowDimensions();
 
   const functions = useMemo(() => new Functions(client), []);
   const fnIdEnv = useMemo(
@@ -112,23 +112,14 @@ const ConnectScreen = () => {
     return () => { mounted = false; };
   }, [functions, fnIdEnv]);
 
-  const goToPendingRequests = () => {
-    // Navigate to the Pending Requests screen
-    // This would use the actual navigation in a real app
-    console.log('Navigate to Pending Requests');
-  };
+  // Responsive columns for recommended grid
+  const horizontalPadding = SIZES.md * 2;
+  const cardMinWidth = 240;
+  const numColumns = Math.max(1, Math.floor((width - horizontalPadding) / cardMinWidth));
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.headerContent} onPress={goToPendingRequests}>
-          <Text style={styles.headerTitle}>Pending Requests</Text>
-          <IconArrowRight width={30} height={15} color={COLORS.white} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Recommended Users */}
-      {!!fnIdEnv && (
+  const renderRecommended = () => {
+    if (!fnIdEnv) return null;
+    return (
       <View style={styles.recommendedWrap}>
         <Text style={styles.recommendedTitle}>Recommended Users</Text>
         {recLoading ? (
@@ -141,13 +132,14 @@ const ConnectScreen = () => {
           <FlatList
             data={recommended}
             keyExtractor={(u: any) => u.$id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: SIZES.md }}
+            scrollEnabled={false}
+            numColumns={numColumns}
+            columnWrapperStyle={numColumns > 1 ? { columnGap: SIZES.sm } : undefined}
+            contentContainerStyle={{ paddingHorizontal: SIZES.md, rowGap: SIZES.sm }}
             renderItem={({ item }) => {
               const displayName = item.name || (item.email ? String(item.email).split('@')[0] : 'Unknown');
               return (
-                <View style={styles.recommendedCard}>
+                <View style={[styles.recommendedCard, { flex: 1 }]}> 
                   <Text style={styles.recommendedName}>{displayName}</Text>
                   {!!item.email && <Text style={styles.recommendedEmail}>{item.email}</Text>}
                   <View style={{ height: 8 }} />
@@ -159,8 +151,13 @@ const ConnectScreen = () => {
             }}
           />
         )}
-  </View>
-  )}
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Removed Pending Requests header; streamlined layout */}
 
       <View style={styles.tabContainer}>
         <TouchableOpacity 
@@ -190,6 +187,8 @@ const ConnectScreen = () => {
         )}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.requestsList}
+        ListFooterComponent={renderRecommended}
+        ListFooterComponentStyle={{ paddingBottom: SIZES.lg }}
       />
     </SafeAreaView>
   );
@@ -199,22 +198,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.white
-  },
-  header: {
-    height: 67,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SIZES.md,
-    justifyContent: 'center'
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  headerTitle: {
-    fontFamily: FONTS.body,
-    fontSize: 25,
-    color: COLORS.black,
-    marginRight: SIZES.md
   },
   recommendedWrap: {
     paddingTop: SIZES.md,
