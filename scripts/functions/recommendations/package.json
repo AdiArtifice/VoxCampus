@@ -5,6 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "build": "echo 'No build step needed'",
     "start": "node index.js"
   },
   "keywords": [
