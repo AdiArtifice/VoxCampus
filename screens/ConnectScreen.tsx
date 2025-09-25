@@ -64,7 +64,14 @@ const ConnectScreen = () => {
         const exec = await functions.createExecution(fnId, undefined, false);
         const code = (exec as any).responseStatusCode ?? 200;
         const body = (exec as any).responseBody ?? '[]';
-        if (code >= 400) throw new Error(`Function error (${code})`);
+        if (code >= 400) {
+          try {
+            const err = JSON.parse(body);
+            throw new Error(err?.error || `Function error (${code})`);
+          } catch {
+            throw new Error(`Function error (${code})`);
+          }
+        }
         const data = JSON.parse(body);
         if (mounted) setRecommended(Array.isArray(data) ? data : []);
       } catch (e: any) {
