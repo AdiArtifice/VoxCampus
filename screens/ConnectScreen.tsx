@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { COLORS, FONTS, SIZES } from '@/constants/theme';
 import IconArrowRight from '@/assets/images/IconArrowRight';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { client } from '@/lib/appwrite';
+import { Functions } from 'react-native-appwrite';
 
 // Mock data for connection requests
 const mockReceivedRequests = [
@@ -54,6 +56,36 @@ const RequestItem: React.FC<RequestItemProps> = ({ name, department, onAccept, o
 const ConnectScreen = () => {
   const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
   const navigation = useNavigation();
+  const [recommended, setRecommended] = useState<any[]>([]);
+  const [recLoading, setRecLoading] = useState<boolean>(false);
+  const [recError, setRecError] = useState<string | null>(null);
+
+  const functions = useMemo(() => new Functions(client), []);
+
+  useEffect(() => {
+    const fnId = process.env.EXPO_PUBLIC_APPWRITE_RECOMMENDATIONS_FUNCTION_ID as string | undefined;
+    if (!fnId) {
+      setRecError('Missing EXPO_PUBLIC_APPWRITE_RECOMMENDATIONS_FUNCTION_ID');
+      return;
+    }
+    let mounted = true;
+    (async () => {
+      setRecLoading(true); setRecError(null);
+      try {
+        const exec = await functions.createExecution(fnId, undefined, false);
+        const code = (exec as any).responseStatusCode ?? 200;
+        const body = (exec as any).responseBody ?? '[]';
+        if (code >= 400) throw new Error(`Function error (${code})`);
+        const data = JSON.parse(body);
+        if (mounted) setRecommended(Array.isArray(data) ? data : []);
+      } catch (e: any) {
+        if (mounted) setRecError(e?.message ?? 'Failed to load recommendations');
+      } finally {
+        if (mounted) setRecLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [functions]);
 
   const goToPendingRequests = () => {
     // Navigate to the Pending Requests screen
@@ -68,6 +100,39 @@ const ConnectScreen = () => {
           <Text style={styles.headerTitle}>Pending Requests</Text>
           <IconArrowRight width={30} height={15} color={COLORS.white} />
         </TouchableOpacity>
+      </View>
+
+      {/* Recommended Users */}
+      <View style={styles.recommendedWrap}>
+        <Text style={styles.recommendedTitle}>Recommended Users</Text>
+        {recLoading ? (
+          <View style={styles.recommendedState}><ActivityIndicator color={COLORS.primary} /><Text style={styles.recommendedStateText}> Loading…</Text></View>
+        ) : recError ? (
+          <Text style={styles.recommendedStateText}>Unable to load: {recError}</Text>
+        ) : recommended.length === 0 ? (
+          <Text style={styles.recommendedStateText}>No recommendations yet.</Text>
+        ) : (
+          <FlatList
+            data={recommended}
+            keyExtractor={(u: any) => u.$id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: SIZES.md }}
+            renderItem={({ item }) => {
+              const displayName = item.name || (item.email ? String(item.email).split('@')[0] : 'Unknown');
+              return (
+                <View style={styles.recommendedCard}>
+                  <Text style={styles.recommendedName}>{displayName}</Text>
+                  {!!item.email && <Text style={styles.recommendedEmail}>{item.email}</Text>}
+                  <View style={{ height: 8 }} />
+                  <TouchableOpacity style={styles.smallPrimaryBtn} onPress={() => console.log('Connect ->', item.$id)}>
+                    <Text style={styles.smallPrimaryBtnText}>Connect</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            }}
+          />
+        )}
       </View>
 
       <View style={styles.tabContainer}>
@@ -123,6 +188,61 @@ const styles = StyleSheet.create({
     fontSize: 25,
     color: COLORS.black,
     marginRight: SIZES.md
+  },
+  recommendedWrap: {
+    paddingTop: SIZES.md,
+    paddingBottom: SIZES.sm,
+  },
+  recommendedTitle: {
+    fontFamily: FONTS.body,
+    fontSize: 22,
+    color: COLORS.black,
+    paddingHorizontal: SIZES.md,
+    marginBottom: SIZES.sm,
+  },
+  recommendedState: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SIZES.md,
+  },
+  recommendedStateText: {
+    fontFamily: FONTS.regular,
+    color: COLORS.black,
+    opacity: 0.7,
+    paddingHorizontal: SIZES.md,
+  },
+  recommendedCard: {
+    width: 240,
+    padding: SIZES.md,
+    marginRight: SIZES.sm,
+    backgroundColor: COLORS.white,
+    borderRadius: SIZES.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+  },
+  recommendedName: {
+    fontFamily: FONTS.body,
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.black,
+  },
+  recommendedEmail: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: COLORS.black,
+    opacity: 0.7,
+  },
+  smallPrimaryBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: COLORS.primary,
+    borderRadius: SIZES.borderRadius.sm,
+  },
+  smallPrimaryBtnText: {
+    color: COLORS.white,
+    fontFamily: FONTS.body,
+    fontSize: 14,
   },
   tabContainer: {
     flexDirection: 'row',

@@ -30,18 +30,16 @@ function createClient() {
 async function listAllUsers(users) {
 	const all = [];
 	const pageSize = 100;
-	let cursor = undefined;
+	let offset = 0;
 
 	while (true) {
-		const queries = [Query.limit(pageSize)];
-		if (cursor) queries.push(Query.cursorAfter(cursor));
-
+		const queries = [Query.limit(pageSize), Query.offset(offset)];
 		const resp = await users.list(queries);
 		const batch = resp.users ?? [];
 		all.push(...batch);
 
 		if (batch.length < pageSize) break;
-		cursor = batch[batch.length - 1].$id;
+		offset += batch.length;
 	}
 
 	return all;
@@ -50,7 +48,7 @@ async function listAllUsers(users) {
 /**
  * Appwrite function entrypoint
  */
-export default async ({ res, log, error }) => {
+async function handler({ res, log, error }) {
 	try {
 		const client = createClient();
 		const usersSvc = new Users(client);
@@ -68,7 +66,10 @@ export default async ({ res, log, error }) => {
 	} catch (e) {
 		error?.(e);
 		const message = e?.message || 'Failed to get recommended users';
-		return res.json({ error: message }, 500);
+			return res.json({ error: message }, 500);
 	}
-};
+	}
+
+	export default handler;
+	module.exports = handler;
 
