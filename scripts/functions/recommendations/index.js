@@ -65,11 +65,10 @@ async function handler({ res, log, error }) {
 		return res.json(recommended);
 	} catch (e) {
 		error?.(e);
-		const message = e?.message || 'Failed to get recommended users';
+			const message = e?.message || 'Failed to get recommended users';
 			return res.json({ error: message }, 500);
-	}
+		}
 	}
 
 	export default handler;
-	module.exports = handler;
 

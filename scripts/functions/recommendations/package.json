@@ -1,0 +1,21 @@
+{
+  "name": "recommendation-function",
+  "version": "1.0.0",
+  "description": "Appwrite serverless function that returns recommended users (emails ending with @college.edu)",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "appwrite",
+    "functions",
+    "recommendations",
+    "users"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "node-appwrite": "^14.0.0"
+  }
+}
