@@ -6,7 +6,7 @@ import { Client, Users, Query } from 'node-appwrite';
 /**
  * Helper to create an Appwrite server client from environment variables.
  */
-function createClient() {
+function resolveEnv() {
 	const endpoint = process.env.APPWRITE_FUNCTION_ENDPOINT || process.env.APPWRITE_ENDPOINT;
 	const projectId = process.env.APPWRITE_FUNCTION_PROJECT_ID || process.env.APPWRITE_PROJECT_ID;
 	const apiKey = process.env.APPWRITE_FUNCTION_API_KEY || process.env.APPWRITE_API_KEY;
@@ -14,6 +14,11 @@ function createClient() {
 	if (!endpoint || !projectId || !apiKey) {
 		throw new Error('Missing required environment variables: APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY');
 	}
+		return { endpoint, projectId, apiKey };
+}
+
+function createClient() {
+	const { endpoint, projectId, apiKey } = resolveEnv();
 
 	const client = new Client()
 		.setEndpoint(endpoint)
@@ -50,11 +55,40 @@ async function listAllUsers(users) {
  */
 async function handler({ res, log, error }) {
 		try {
-		const client = createClient();
+		const { endpoint, projectId, apiKey } = resolveEnv();
+		const client = new Client().setEndpoint(endpoint).setProject(projectId).setKey(apiKey);
 		const usersSvc = new Users(client);
 
 		// Fetch all users with pagination
-		const allUsers = await listAllUsers(usersSvc);
+			let allUsers = [];
+			try {
+				allUsers = await listAllUsers(usersSvc);
+			} catch (sdkErr) {
+				log?.(`SDK list failed, falling back to REST: ${sdkErr?.message || sdkErr}`);
+				// REST fallback using fetch
+				const limit = 100;
+				let offset = 0;
+				while (true) {
+					const url = `${endpoint}/users?queries[]=${encodeURIComponent(`limit(${limit})`)}&queries[]=${encodeURIComponent(`offset(${offset})`)}`;
+					const r = await fetch(url, {
+						method: 'GET',
+						headers: {
+							'X-Appwrite-Project': projectId,
+							'X-Appwrite-Key': apiKey,
+							'Content-Type': 'application/json',
+						},
+					});
+					if (!r.ok) {
+						const body = await r.text();
+						throw new Error(`REST users list failed: ${r.status} ${body}`);
+					}
+					const data = await r.json();
+					const batch = Array.isArray(data.users) ? data.users : [];
+					allUsers.push(...batch);
+					if (batch.length < limit) break;
+					offset += batch.length;
+				}
+			}
 
 		// Filter by email domain
 		const recommended = allUsers.filter((u) => {
@@ -62,7 +96,7 @@ async function handler({ res, log, error }) {
 			return email.endsWith('@college.edu');
 		});
 
-		return res.json(recommended);
+			return res.json(recommended);
 		} catch (e) {
 			error?.(e);
 			const message = e?.message || 'Failed to get recommended users';

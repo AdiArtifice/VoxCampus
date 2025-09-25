@@ -53,9 +53,13 @@ const ConnectScreen = () => {
   const [recError, setRecError] = useState<string | null>(null);
 
   const functions = useMemo(() => new Functions(client), []);
+  const fnIdEnv = useMemo(
+    () => (process.env.EXPO_PUBLIC_APPWRITE_FUNCTION_ID as string) || (process.env.EXPO_PUBLIC_APPWRITE_RECOMMENDATIONS_FUNCTION_ID as string) || '',
+    []
+  );
 
   useEffect(() => {
-    const fnId = process.env.EXPO_PUBLIC_APPWRITE_RECOMMENDATIONS_FUNCTION_ID as string | undefined;
+    const fnId = fnIdEnv as string | undefined;
     if (!fnId) return; // Gracefully skip when not configured
     let mounted = true;
     (async () => {
@@ -81,7 +85,7 @@ const ConnectScreen = () => {
       }
     })();
     return () => { mounted = false; };
-  }, [functions]);
+  }, [functions, fnIdEnv]);
 
   const goToPendingRequests = () => {
     // Navigate to the Pending Requests screen
@@ -99,7 +103,7 @@ const ConnectScreen = () => {
       </View>
 
       {/* Recommended Users */}
-      {!!process.env.EXPO_PUBLIC_APPWRITE_RECOMMENDATIONS_FUNCTION_ID && (
+      {!!fnIdEnv && (
       <View style={styles.recommendedWrap}>
         <Text style={styles.recommendedTitle}>Recommended Users</Text>
         {recLoading ? (
