@@ -90,11 +90,22 @@ async function handler({ res, log, error }) {
 				}
 			}
 
-		// Filter by email domain
-		const recommended = allUsers.filter((u) => {
-			const email = (u.email || '').toString().toLowerCase();
-			return email.endsWith('@college.edu');
-		});
+			// Filter by email domain (configurable by RECOMMEND_EMAIL_SUFFIXES, comma-separated)
+			const suffixEnv = (process.env.RECOMMEND_EMAIL_SUFFIXES || '').toString().toLowerCase();
+			const suffixes = suffixEnv
+				.split(',')
+				.map((s) => s.trim())
+				.filter(Boolean);
+
+			const recommended = allUsers.filter((u) => {
+				const email = (u.email || '').toString().toLowerCase();
+				if (!email) return false;
+				if (suffixes.length > 0) {
+					return suffixes.some((s) => email.endsWith(s));
+				}
+				// Default behavior if not configured
+				return email.endsWith('@college.edu');
+			});
 
 			return res.json(recommended);
 		} catch (e) {
