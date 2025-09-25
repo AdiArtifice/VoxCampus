@@ -7,17 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import { client } from '@/lib/appwrite';
 import { Functions } from 'react-native-appwrite';
 
-// Mock data for connection requests
-const mockReceivedRequests = [
-  { id: '1', name: 'Jane Smith', department: 'Computer Science' },
-  { id: '2', name: 'Michael Brown', department: 'Electronics' },
-  { id: '3', name: 'Emily Davis', department: 'Mechanical' }
-];
-
-const mockSentRequests = [
-  { id: '1', name: 'Alex Johnson', department: 'Information Technology' },
-  { id: '2', name: 'Sarah Williams', department: 'Civil Engineering' }
-];
+// No mock data; start empty until backend is wired
 
 type RequestItemProps = {
   name: string;
@@ -56,6 +46,8 @@ const RequestItem: React.FC<RequestItemProps> = ({ name, department, onAccept, o
 const ConnectScreen = () => {
   const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
   const navigation = useNavigation();
+  const [receivedRequests] = useState<any[]>([]);
+  const [sentRequests] = useState<any[]>([]);
   const [recommended, setRecommended] = useState<any[]>([]);
   const [recLoading, setRecLoading] = useState<boolean>(false);
   const [recError, setRecError] = useState<string | null>(null);
@@ -64,10 +56,7 @@ const ConnectScreen = () => {
 
   useEffect(() => {
     const fnId = process.env.EXPO_PUBLIC_APPWRITE_RECOMMENDATIONS_FUNCTION_ID as string | undefined;
-    if (!fnId) {
-      setRecError('Missing EXPO_PUBLIC_APPWRITE_RECOMMENDATIONS_FUNCTION_ID');
-      return;
-    }
+    if (!fnId) return; // Gracefully skip when not configured
     let mounted = true;
     (async () => {
       setRecLoading(true); setRecError(null);
@@ -103,6 +92,7 @@ const ConnectScreen = () => {
       </View>
 
       {/* Recommended Users */}
+      {!!process.env.EXPO_PUBLIC_APPWRITE_RECOMMENDATIONS_FUNCTION_ID && (
       <View style={styles.recommendedWrap}>
         <Text style={styles.recommendedTitle}>Recommended Users</Text>
         {recLoading ? (
@@ -133,7 +123,8 @@ const ConnectScreen = () => {
             }}
           />
         )}
-      </View>
+  </View>
+  )}
 
       <View style={styles.tabContainer}>
         <TouchableOpacity 
@@ -151,7 +142,7 @@ const ConnectScreen = () => {
       </View>
 
       <FlatList
-        data={activeTab === 'received' ? mockReceivedRequests : mockSentRequests}
+        data={activeTab === 'received' ? receivedRequests : sentRequests}
         renderItem={({ item }) => (
           <RequestItem
             name={item.name}
