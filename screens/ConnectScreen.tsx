@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, 
 import { COLORS, FONTS, SIZES } from '@/constants/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { client, account } from '@/lib/appwrite';
+import { client, account, databases, ID, Query } from '@/lib/appwrite';
 import { Functions } from 'react-native-appwrite';
 
 // No mock data; start empty until backend is wired
@@ -45,8 +45,8 @@ const RequestItem: React.FC<RequestItemProps> = ({ name, department, onAccept, o
 const ConnectScreen = () => {
   const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
   const navigation = useNavigation();
-  const [receivedRequests] = useState<any[]>([]);
-  const [sentRequests] = useState<any[]>([]);
+  const [receivedRequests, setReceivedRequests] = useState<any[]>([]);
+  const [sentRequests, setSentRequests] = useState<any[]>([]);
   const [recommended, setRecommended] = useState<any[]>([]);
   const [recLoading, setRecLoading] = useState<boolean>(false);
   const [recError, setRecError] = useState<string | null>(null);
@@ -57,6 +57,36 @@ const ConnectScreen = () => {
     () => (process.env.EXPO_PUBLIC_APPWRITE_FUNCTION_ID as string) || (process.env.EXPO_PUBLIC_APPWRITE_RECOMMENDATIONS_FUNCTION_ID as string) || '',
     []
   );
+
+  // IDs
+  const databaseId = (process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID as string) || '68c58e83000a2666b4d9';
+  const connectionsCol = 'connections';
+
+  // Load requests for current user
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const me = await account.get();
+        // Received: toUserId == me.$id and status == 'pending'
+        const recv = await databases.listDocuments(databaseId, connectionsCol, [
+          Query.equal('toUserId', me.$id),
+          Query.equal('status', 'pending')
+        ]);
+        // Sent: fromUserId == me.$id and status == 'pending'
+        const sent = await databases.listDocuments(databaseId, connectionsCol, [
+          Query.equal('fromUserId', me.$id),
+          Query.equal('status', 'pending')
+        ]);
+        if (!mounted) return;
+        setReceivedRequests(recv.documents || []);
+        setSentRequests(sent.documents || []);
+      } catch (e) {
+        // no-op for now
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     const fnId = fnIdEnv as string | undefined;
@@ -143,7 +173,39 @@ const ConnectScreen = () => {
                   <Text style={styles.recommendedName}>{displayName}</Text>
                   {!!item.email && <Text style={styles.recommendedEmail}>{item.email}</Text>}
                   <View style={{ height: 8 }} />
-                  <TouchableOpacity style={styles.smallPrimaryBtn} onPress={() => console.log('Connect ->', item.$id)}>
+                  <TouchableOpacity
+                    style={styles.smallPrimaryBtn}
+                    onPress={async () => {
+                      try {
+                        const me = await account.get();
+                        await databases.createDocument(databaseId, connectionsCol, ID.unique(), {
+                          fromUserId: me.$id,
+                          fromName: me.name,
+                          fromEmail: me.email,
+                          toUserId: item.$id,
+                          toName: item.name,
+                          toEmail: item.email,
+                          status: 'pending',
+                          requestedAt: new Date().toISOString(),
+                        });
+                        // Optimistically update sent list
+                        setSentRequests((prev) => [
+                          {
+                            $id: 'temp-' + item.$id,
+                            fromUserId: me.$id,
+                            toUserId: item.$id,
+                            status: 'pending',
+                            toName: item.name,
+                            toEmail: item.email,
+                            requestedAt: new Date().toISOString(),
+                          },
+                          ...prev,
+                        ]);
+                      } catch (e) {
+                        console.log('Failed to send request', e);
+                      }
+                    }}
+                  >
                     <Text style={styles.smallPrimaryBtnText}>Connect</Text>
                   </TouchableOpacity>
                 </View>
@@ -178,14 +240,41 @@ const ConnectScreen = () => {
         data={activeTab === 'received' ? receivedRequests : sentRequests}
         renderItem={({ item }) => (
           <RequestItem
-            name={item.name}
-            department={item.department}
+            name={activeTab === 'received' ? (item.fromName || item.fromEmail || item.fromUserId) : (item.toName || item.toEmail || item.toUserId)}
+            department={activeTab === 'received' ? (item.fromEmail || '') : (item.toEmail || '')}
             type={activeTab}
-            onAccept={() => console.log(`Accept request from ${item.name}`)}
-            onReject={() => console.log(`Reject request from ${item.name}`)}
+            onAccept={async () => {
+              if (activeTab !== 'received') return;
+              try {
+                await databases.updateDocument(databaseId, connectionsCol, item.$id, {
+                  status: 'accepted',
+                  respondedAt: new Date().toISOString(),
+                });
+                setReceivedRequests((prev) => prev.filter((r) => r.$id !== item.$id));
+              } catch (e) {
+                console.log('Accept failed', e);
+              }
+            }}
+            onReject={async () => {
+              try {
+                // If received, reject updates status; if sent, cancel = delete
+                if (activeTab === 'received') {
+                  await databases.updateDocument(databaseId, connectionsCol, item.$id, {
+                    status: 'rejected',
+                    respondedAt: new Date().toISOString(),
+                  });
+                  setReceivedRequests((prev) => prev.filter((r) => r.$id !== item.$id));
+                } else {
+                  await databases.deleteDocument(databaseId, connectionsCol, item.$id);
+                  setSentRequests((prev) => prev.filter((r) => r.$id !== item.$id));
+                }
+              } catch (e) {
+                console.log('Reject/Cancel failed', e);
+              }
+            }}
           />
         )}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item.$id}
         contentContainerStyle={styles.requestsList}
         ListFooterComponent={renderRecommended}
         ListFooterComponentStyle={{ paddingBottom: SIZES.lg }}
