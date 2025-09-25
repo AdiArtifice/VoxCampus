@@ -4,7 +4,7 @@ import { COLORS, FONTS, SIZES } from '@/constants/theme';
 import IconArrowRight from '@/assets/images/IconArrowRight';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { client } from '@/lib/appwrite';
+import { client, account } from '@/lib/appwrite';
 import { Functions } from 'react-native-appwrite';
 
 // No mock data; start empty until backend is wired
@@ -65,7 +65,14 @@ const ConnectScreen = () => {
     (async () => {
       setRecLoading(true); setRecError(null);
       try {
-        const exec = await functions.createExecution(fnId, undefined, false);
+        // Include current user info to exclude from recommendations
+        let excludePayload: any = undefined;
+        try {
+          const me = await account.get();
+          excludePayload = JSON.stringify({ excludeUserId: me.$id, excludeEmail: me.email });
+        } catch {}
+
+        const exec = await functions.createExecution(fnId, excludePayload, false);
         const code = (exec as any).responseStatusCode ?? 200;
         const body = (exec as any).responseBody ?? '[]';
         if (code >= 400) {
@@ -76,8 +83,26 @@ const ConnectScreen = () => {
             throw new Error(`Function error (${code})`);
           }
         }
+        const me = await account.get().catch(() => null);
         const data = JSON.parse(body);
-        if (mounted) setRecommended(Array.isArray(data) ? data : []);
+        let list = Array.isArray(data) ? data : [];
+        // Defensive client-side filter: exclude self and obviously unverified entries
+        if (me) {
+          const myId = String(me.$id);
+          const myEmail = String(me.email || '').toLowerCase();
+          list = list.filter((u: any) => {
+            const uid = String(u.$id || u.id || '');
+            const email = String(u.email || '').toLowerCase();
+            if (!email) return false;
+            if (uid === myId) return false;
+            if (email === myEmail) return false;
+            // If backend included verification flags, respect them; otherwise allow
+            if (typeof (u as any).emailVerification !== 'undefined' && (u as any).emailVerification !== true) return false;
+            if (typeof (u as any).status !== 'undefined' && !((u as any).status === true || (u as any).status === 1 || (u as any).status === 'active')) return false;
+            return true;
+          });
+        }
+        if (mounted) setRecommended(list);
       } catch (e: any) {
         if (mounted) setRecError(e?.message ?? 'Failed to load recommendations');
       } finally {

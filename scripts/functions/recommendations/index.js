@@ -90,15 +90,18 @@ async function handler({ req, res, log, error }) {
 				}
 			}
 
-				// Extract optional exclusions from request body
+				// Extract optional exclusions from request payload
 				let excludeUserId = undefined;
 				let excludeEmail = undefined;
 				try {
-					const raw = (req && (req.body || req.bodyRaw)) || '{}';
+					// Appwrite Node runtimes provide req.payload as a string; fall back to body/bodyRaw for safety
+					const raw = (req && (req.payload ?? req.body ?? req.bodyRaw)) || '{}';
 					const parsed = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});
 					excludeUserId = parsed.excludeUserId || parsed.exclude_id || undefined;
 					excludeEmail = (parsed.excludeEmail || parsed.exclude_email || '').toString().toLowerCase() || undefined;
-				} catch {}
+				} catch (parseErr) {
+					log?.(`Failed to parse request payload: ${parseErr?.message || parseErr}`);
+				}
 
 				// Filter by email domain (configurable by RECOMMEND_EMAIL_SUFFIXES, comma-separated)
 			const suffixEnv = (process.env.RECOMMEND_EMAIL_SUFFIXES || '').toString().toLowerCase();
@@ -110,6 +113,7 @@ async function handler({ req, res, log, error }) {
 				const recommended = allUsers.filter((u) => {
 					const email = (u.email || '').toString().toLowerCase();
 					const uid = u.$id || u.id;
+					// Appwrite Users model: emailVerification is boolean; status can be 1/0 or 'active'
 					const verified = u.emailVerification === true;
 					const active = u.status === true || u.status === 1 || u.status === 'active';
 
@@ -126,7 +130,9 @@ async function handler({ req, res, log, error }) {
 					return email.endsWith('@college.edu');
 				});
 
-			return res.json(recommended);
+			// Only return minimal safe fields
+			const safe = recommended.map((u) => ({ $id: u.$id || u.id, name: u.name, email: u.email }));
+			return res.json(safe);
 		} catch (e) {
 			error?.(e);
 			const message = e?.message || 'Failed to get recommended users';
