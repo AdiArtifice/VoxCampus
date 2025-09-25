@@ -53,7 +53,7 @@ async function listAllUsers(users) {
 /**
  * Appwrite function entrypoint
  */
-async function handler({ res, log, error }) {
+async function handler({ req, res, log, error }) {
 		try {
 		const { endpoint, projectId, apiKey } = resolveEnv();
 		const client = new Client().setEndpoint(endpoint).setProject(projectId).setKey(apiKey);
@@ -90,22 +90,41 @@ async function handler({ res, log, error }) {
 				}
 			}
 
-			// Filter by email domain (configurable by RECOMMEND_EMAIL_SUFFIXES, comma-separated)
+				// Extract optional exclusions from request body
+				let excludeUserId = undefined;
+				let excludeEmail = undefined;
+				try {
+					const raw = (req && (req.body || req.bodyRaw)) || '{}';
+					const parsed = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});
+					excludeUserId = parsed.excludeUserId || parsed.exclude_id || undefined;
+					excludeEmail = (parsed.excludeEmail || parsed.exclude_email || '').toString().toLowerCase() || undefined;
+				} catch {}
+
+				// Filter by email domain (configurable by RECOMMEND_EMAIL_SUFFIXES, comma-separated)
 			const suffixEnv = (process.env.RECOMMEND_EMAIL_SUFFIXES || '').toString().toLowerCase();
 			const suffixes = suffixEnv
 				.split(',')
 				.map((s) => s.trim())
 				.filter(Boolean);
 
-			const recommended = allUsers.filter((u) => {
-				const email = (u.email || '').toString().toLowerCase();
-				if (!email) return false;
-				if (suffixes.length > 0) {
-					return suffixes.some((s) => email.endsWith(s));
-				}
-				// Default behavior if not configured
-				return email.endsWith('@college.edu');
-			});
+				const recommended = allUsers.filter((u) => {
+					const email = (u.email || '').toString().toLowerCase();
+					const uid = u.$id || u.id;
+					const verified = u.emailVerification === true;
+					const active = u.status === true || u.status === 1 || u.status === 'active';
+
+					if (!email) return false;
+					if (!verified) return false; // exclude unverified accounts
+					if (!active) return false;   // exclude inactive/blocked
+					if (excludeUserId && uid && String(uid) === String(excludeUserId)) return false; // exclude self by id
+					if (excludeEmail && email === excludeEmail) return false; // exclude self by email
+
+					if (suffixes.length > 0) {
+						return suffixes.some((s) => email.endsWith(s));
+					}
+					// Default behavior if not configured
+					return email.endsWith('@college.edu');
+				});
 
 			return res.json(recommended);
 		} catch (e) {
