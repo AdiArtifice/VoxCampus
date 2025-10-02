@@ -16,6 +16,7 @@ import { COLORS, FONTS, SIZES } from '@/constants/theme';
 import StandalonePostCard from '@/components/StandalonePostCard';
 import PostHead from '@/components/PostHead';
 import { databases } from '@/lib/appwrite';
+import { APPWRITE_CONFIG } from '@/lib/config';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -43,12 +44,13 @@ export default function StandalonePostView() {
 
   useEffect(() => {
     const loadPost = async () => {
-      const databaseId = process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID || '68c58e83000a2666b4d9';
+  const databaseId = APPWRITE_CONFIG.DATABASE_ID;
+  const collectionId = APPWRITE_CONFIG.COLLECTION_ID;
       // === DIAGNOSTIC LOGS START ===
       console.log('=== POST ROUTE DEBUG ===');
       console.log('Raw postId from URL:', postId);
-      console.log('Database ID (resolved):', databaseId);
-      console.log('Collection attempting to query:', 'events_and_sessions');
+  console.log('Using Database ID:', databaseId);
+  console.log('Using Collection ID:', collectionId);
       console.log('Appwrite Endpoint:', process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT);
       console.log('Appwrite Project ID:', process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID);
       // === DIAGNOSTIC LOGS END ===
@@ -70,15 +72,11 @@ export default function StandalonePostView() {
         setError('');
         
         // Fetch post from events_and_sessions collection
-        console.log('Attempting to fetch document with params:', {
-          databaseId,
-          collectionId: 'events_and_sessions',
-          documentId: cleanPostId,
-        });
+        console.log('Attempting to fetch document with params:', { databaseId, collectionId, documentId: cleanPostId });
 
         const eventResponse = await databases.getDocument(
           databaseId,
-          'events_and_sessions',
+          collectionId,
           cleanPostId
         );
         
