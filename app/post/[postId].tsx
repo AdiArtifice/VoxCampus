@@ -5,48 +5,45 @@ import {
   StyleSheet, 
   ScrollView, 
   ActivityIndicator, 
-  Alert, 
-  SafeAreaView 
+  TouchableOpacity,
+  Linking,
+  SafeAreaView,
+  Platform,
+  Dimensions
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { COLORS, FONTS, SIZES } from '@/constants/theme';
-import PostCard from '@/components/PostCard';
-import { useAuth } from '@/hooks/useAuth';
+import StandalonePostCard from '@/components/StandalonePostCard';
+import PostHead from '@/components/PostHead';
 import { databases } from '@/lib/appwrite';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 interface Post {
   $id: string;
   title: string;
-  description?: string;
+  description: string;
   organizer?: string;
   organizerId?: string;
   startAt?: string;
   endAt?: string;
+  location?: string;
   rsvpUrl?: string;
   meetingUrl?: string;
   infoUrl?: string;
   bannerUrl?: string;
+  type?: string;
 }
 
-export default function PostDetailScreen() {
+export default function StandalonePostView() {
   const { postId } = useLocalSearchParams<{ postId: string }>();
-  const router = useRouter();
-  const { user } = useAuth();
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
     const loadPost = async () => {
-      console.log('🔍 === POST DEBUG SESSION START ===');
-      console.log('🔍 Raw useLocalSearchParams result:', useLocalSearchParams());
-      console.log('🔍 Extracted postId:', postId);
-      console.log('🔍 postId type:', typeof postId);
-      console.log('🔍 postId length:', postId?.length);
-      console.log('🔍 postId JSON.stringify:', JSON.stringify(postId));
-      
       if (!postId) {
-        console.log('❌ No postId provided');
         setError('No post ID provided');
         setLoading(false);
         return;
@@ -54,78 +51,44 @@ export default function PostDetailScreen() {
 
       // Clean and validate postId
       const cleanPostId = typeof postId === 'string' ? postId.trim() : String(postId).trim();
-      console.log('🧹 Cleaned postId:', cleanPostId);
-      console.log('🧹 Cleaned postId length:', cleanPostId.length);
 
       try {
         setLoading(true);
         setError('');
         
-        // Log database configuration
-        const databaseId = process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID;
-        const collectionId = 'events_and_sessions';
-        
-        console.log('🗄️ Database ID:', databaseId);
-        console.log('🗄️ Collection ID:', collectionId);
-        console.log('🗄️ Document ID (postId):', cleanPostId);
-        console.log('🗄️ Full query params:', { databaseId, collectionId, documentId: cleanPostId });
-        
-        console.log('📡 Attempting database query...');
-        
-        // Try to fetch from events_and_sessions collection
+        // Fetch post from events_and_sessions collection
         const eventResponse = await databases.getDocument(
-          databaseId!,
-          collectionId,
+          process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID!,
+          'events_and_sessions',
           cleanPostId
         );
         
-        console.log('✅ Database query successful!');
-        console.log('📄 Found post data:', eventResponse);
-        console.log('📄 Post $id:', eventResponse.$id);
-        console.log('📄 Post title:', eventResponse.title);
-        console.log('📄 Post keys:', Object.keys(eventResponse));
-        
         if (eventResponse) {
           setPost(eventResponse as unknown as Post);
-          console.log('✅ Post state updated successfully');
         } else {
-          console.log('❌ Empty response from database');
           setError('Post not found');
         }
         
       } catch (err) {
-        console.log('🚨 === ERROR DETAILS ===');
-        console.error('❌ Full error object:', err);
-        console.error('❌ Error name:', err instanceof Error ? err.name : 'Unknown');
-        console.error('❌ Error message:', err instanceof Error ? err.message : String(err));
-        console.error('❌ Error stack:', err instanceof Error ? err.stack : 'No stack');
-        
-        // Check if it's an Appwrite error with more details
-        if (err && typeof err === 'object' && 'code' in err) {
-          console.error('❌ Appwrite error code:', (err as any).code);
-          console.error('❌ Appwrite error type:', (err as any).type);
-          console.error('❌ Appwrite error response:', (err as any).response);
-        }
-        
+        console.error('Error loading post:', err);
         setError('Post not found or no longer available');
-        
-        // Show alert for missing post
-        Alert.alert(
-          'Post Not Found',
-          `The post you're looking for doesn't exist or has been removed.\n\nPost ID: ${cleanPostId}\nError: ${err instanceof Error ? err.message : String(err)}`,
-          [
-            { text: 'Go Back', onPress: () => router.back() },
-            { text: 'Go Home', onPress: () => router.replace('/') }
-          ]
-        );
       } finally {
         setLoading(false);
-        console.log('🔍 === POST DEBUG SESSION END ===');
       }
     };
 
     loadPost();
-  }, [postId, router]);
+  }, [postId]);
+
+  const handleOpenApp = () => {
+    if (Platform.OS === 'web') {
+      // On web, navigate to the main app
+      window.location.href = '/';
+    } else {
+      // On mobile, this would open the app
+      Linking.openURL('voxcampus://');
+    }
+  };
 
   if (loading) {
     return (
@@ -141,17 +104,23 @@ export default function PostDetailScreen() {
   if (error || !post) {
     return (
       <SafeAreaView style={styles.container}>
+        {/* VoxCampus Header */}
+        <View style={styles.header}>
+          <Text style={styles.brandName}>VoxCampus</Text>
+          <TouchableOpacity style={styles.ctaButton} onPress={handleOpenApp}>
+            <Text style={styles.ctaButtonText}>Explore More Posts</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Oops!</Text>
+          <Text style={styles.errorEmoji}>😔</Text>
+          <Text style={styles.errorTitle}>Post Not Found</Text>
           <Text style={styles.errorText}>
-            {error || 'Post not found'}
+            This post might have been removed or the link is incorrect.
           </Text>
-          <Text 
-            style={styles.goHomeLink}
-            onPress={() => router.replace('/')}
-          >
-            Go to Home
-          </Text>
+          <TouchableOpacity style={styles.goHomeButton} onPress={handleOpenApp}>
+            <Text style={styles.goHomeButtonText}>Discover Other Posts</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -159,39 +128,52 @@ export default function PostDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Meta Tags for Social Sharing */}
+      <PostHead
+        title={post.title}
+        description={post.description}
+        imageUrl={post.bannerUrl}
+        postId={post.$id}
+      />
+      
+      {/* VoxCampus Header */}
+      <View style={styles.header}>
+        <Text style={styles.brandName}>VoxCampus</Text>
+        <TouchableOpacity style={styles.ctaButton} onPress={handleOpenApp}>
+          <Text style={styles.ctaButtonText}>Explore More Posts</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <PostCard
+        {/* Standalone Post Card */}
+        <StandalonePostCard
           postId={post.$id}
-          userName={post.organizer || 'Unknown Organizer'}
-          userAvatar={undefined}
-          content={post.description || post.title}
-          image={post.bannerUrl}
+          title={post.title}
+          description={post.description}
+          organizer={post.organizer}
+          startAt={post.startAt}
+          endAt={post.endAt}
+          location={post.location}
+          bannerUrl={post.bannerUrl}
           rsvpUrl={post.rsvpUrl}
           meetingUrl={post.meetingUrl}
           infoUrl={post.infoUrl}
+          type={post.type}
         />
-        
-        {/* Additional post details */}
-        <View style={styles.additionalInfo}>
-          <Text style={styles.infoText}>
-            💡 Tip: You can like, comment, and share this post with others!
+
+        {/* Call to Action */}
+        <View style={styles.bottomCta}>
+          <Text style={styles.ctaTitle}>Discover More Campus Events</Text>
+          <Text style={styles.ctaDescription}>
+            Join VoxCampus to stay updated with all campus activities, events, and opportunities.
           </Text>
-          
-          {post.startAt && (
-            <Text style={styles.detailText}>
-              📅 Event Date: {new Date(post.startAt).toLocaleDateString()}
-            </Text>
-          )}
-          
-          {post.organizer && (
-            <Text style={styles.detailText}>
-              👥 Organized by: {post.organizer}
-            </Text>
-          )}
+          <TouchableOpacity style={styles.mainCtaButton} onPress={handleOpenApp}>
+            <Text style={styles.mainCtaButtonText}>Open VoxCampus App</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -203,11 +185,45 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SIZES.md,
+    paddingVertical: SIZES.sm,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  brandName: {
+    fontFamily: FONTS.heading,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+  },
+  ctaButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SIZES.md,
+    paddingVertical: SIZES.sm,
+    borderRadius: SIZES.borderRadius.md,
+  },
+  ctaButtonText: {
+    fontFamily: FONTS.body,
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.white,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: SIZES.md,
+    paddingVertical: SIZES.lg,
+    paddingHorizontal: Platform.OS === 'web' ? Math.max(SIZES.md, (screenWidth - 600) / 2) : SIZES.md,
   },
   loadingContainer: {
     flex: 1,
@@ -228,12 +244,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: SIZES.lg,
   },
+  errorEmoji: {
+    fontSize: 48,
+    marginBottom: SIZES.md,
+  },
   errorTitle: {
     fontFamily: FONTS.heading,
     fontSize: 24,
     color: COLORS.black,
     marginBottom: SIZES.md,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   errorText: {
     fontFamily: FONTS.regular,
@@ -241,32 +262,60 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
     textAlign: 'center',
     marginBottom: SIZES.lg,
+    lineHeight: 24,
   },
-  goHomeLink: {
-    fontFamily: FONTS.body,
-    fontSize: 16,
-    color: COLORS.primary,
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
-  additionalInfo: {
-    marginTop: SIZES.lg,
-    padding: SIZES.md,
-    backgroundColor: COLORS.lightGray,
+  goHomeButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SIZES.lg,
+    paddingVertical: SIZES.md,
     borderRadius: SIZES.borderRadius.md,
   },
-  infoText: {
-    fontFamily: FONTS.regular,
-    fontSize: 14,
+  goHomeButtonText: {
+    fontFamily: FONTS.body,
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.white,
+  },
+  bottomCta: {
+    marginTop: SIZES.lg,
+    padding: SIZES.lg,
+    backgroundColor: COLORS.white,
+    borderRadius: SIZES.borderRadius.lg,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  ctaTitle: {
+    fontFamily: FONTS.heading,
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.black,
+    marginBottom: SIZES.sm,
+    textAlign: 'center',
+  },
+  ctaDescription: {
+    fontFamily: FONTS.body,
+    fontSize: 16,
     color: COLORS.gray,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 24,
+    marginBottom: SIZES.lg,
   },
-  detailText: {
-    fontFamily: FONTS.regular,
-    fontSize: 14,
-    color: COLORS.black,
-    marginTop: SIZES.sm,
-    textAlign: 'center',
+  mainCtaButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SIZES.xl,
+    paddingVertical: SIZES.md,
+    borderRadius: SIZES.borderRadius.lg,
+    minWidth: 200,
+    alignItems: 'center',
+  },
+  mainCtaButtonText: {
+    fontFamily: FONTS.body,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.white,
   },
 });
