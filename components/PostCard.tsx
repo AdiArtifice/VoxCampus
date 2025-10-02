@@ -1,5 +1,5 @@
 import React, { useState, useCallback, Fragment, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Linking, Alert, ActivityIndicator } from 'react-native';
 import { COLORS, FONTS, SIZES } from '@/constants/theme';
 import IconLike from '@/assets/images/IconLike';
 import IconComment from '@/assets/images/IconComment';
@@ -7,6 +7,7 @@ import IconShare from '@/assets/images/IconShare';
 import IconSave from '@/assets/images/IconSave';
 import { useLikes } from '@/hooks/useLikes';
 import { useComments } from '@/hooks/useComments';
+import { useShare } from '@/hooks/useShare';
 import Comments from './Comments';
 
 type PostCardProps = {
@@ -39,6 +40,9 @@ const PostCard: React.FC<PostCardProps> = ({
   
   // Comments functionality using custom hook
   const { commentsCount } = useComments(postId);
+  
+  // Share functionality using custom hook
+  const { sharePost, isSharing, shareWithOptions } = useShare();
   
   // Comments section visibility state
   const [showComments, setShowComments] = useState(false);
@@ -95,6 +99,30 @@ const PostCard: React.FC<PostCardProps> = ({
     
     return 'Untitled Post';
   }, []);
+
+  // Share handler - Enhanced with title extraction
+  const handleShare = useCallback(async () => {
+    if (isSharing) return; // Prevent multiple simultaneous shares
+    
+    try {
+      const postTitle = extractTitle(content);
+      const result = await shareWithOptions(
+        postId, 
+        postTitle, 
+        `Check out this post: "${postTitle}"`
+      );
+      
+      if (result.success && result.shared) {
+        // Could show a subtle success indicator if desired
+        console.log('Post shared successfully');
+      } else if (result.copied) {
+        Alert.alert('Link Copied', 'The post link has been copied to your clipboard.');
+      }
+    } catch (error) {
+      console.error('Share error:', error);
+      Alert.alert('Share Error', 'Unable to share this post. Please try again.');
+    }
+  }, [postId, content, isSharing, shareWithOptions, extractTitle]);
 
   const renderContent = useCallback(() => {
     if (!content) return null;
@@ -240,8 +268,16 @@ const PostCard: React.FC<PostCardProps> = ({
         </TouchableOpacity>
         
         {/* Share Button */}
-        <TouchableOpacity style={styles.actionButton} onPress={onShare}>
-          <IconShare width={30} height={30} />
+        <TouchableOpacity 
+          style={[styles.actionButton, isSharing && styles.actionButtonDisabled]} 
+          onPress={handleShare}
+          disabled={isSharing}
+        >
+          {isSharing ? (
+            <ActivityIndicator size="small" color={COLORS.primary} />
+          ) : (
+            <IconShare width={30} height={30} />
+          )}
         </TouchableOpacity>
         
         <View style={styles.spacer} />
@@ -416,6 +452,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.primary,
     fontWeight: '500'
+  },
+  actionButtonDisabled: {
+    opacity: 0.6
   }
 });
 

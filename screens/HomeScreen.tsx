@@ -147,7 +147,6 @@ const HomeScreen = () => {
             rsvpUrl={post.rsvpUrl}
             meetingUrl={post.meetingUrl}
             infoUrl={post.infoUrl}
-            onShare={() => console.log('Share pressed')}
             onSave={() => console.log('Save pressed')}
           />
         ))}
