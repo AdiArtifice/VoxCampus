@@ -16,7 +16,7 @@ import { COLORS, FONTS, SIZES } from '@/constants/theme';
 import StandalonePostCard from '@/components/StandalonePostCard';
 import PostHead from '@/components/PostHead';
 import { databases } from '@/lib/appwrite';
-import { APPWRITE_CONFIG } from '@/lib/config';
+import { APPWRITE, assertConfig } from '@/lib/config';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -44,8 +44,10 @@ export default function StandalonePostView() {
 
   useEffect(() => {
     const loadPost = async () => {
-  const databaseId = APPWRITE_CONFIG.DATABASE_ID;
-  const collectionId = APPWRITE_CONFIG.COLLECTION_ID;
+  // Validate configuration at runtime (web can miss build-time env)
+  assertConfig();
+  const databaseId = APPWRITE.DATABASE_ID || '68c58e83000a2666b4d9';
+  const collectionId = APPWRITE.POSTS_COLLECTION_ID;
       // === DIAGNOSTIC LOGS START ===
       console.log('=== POST ROUTE DEBUG ===');
       console.log('Raw postId from URL:', postId);
@@ -70,6 +72,11 @@ export default function StandalonePostView() {
       try {
         setLoading(true);
         setError('');
+
+        // Guard: if databaseId is still empty, stop early with clear error
+        if (!databaseId) {
+          throw new Error('Missing DB ID (EXPO_PUBLIC_APPWRITE_DATABASE_ID)');
+        }
         
         // Fetch post from events_and_sessions collection
         console.log('Attempting to fetch document with params:', { databaseId, collectionId, documentId: cleanPostId });
