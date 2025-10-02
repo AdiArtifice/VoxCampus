@@ -43,6 +43,16 @@ export default function StandalonePostView() {
 
   useEffect(() => {
     const loadPost = async () => {
+      const databaseId = process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID || '68c58e83000a2666b4d9';
+      // === DIAGNOSTIC LOGS START ===
+      console.log('=== POST ROUTE DEBUG ===');
+      console.log('Raw postId from URL:', postId);
+      console.log('Database ID (resolved):', databaseId);
+      console.log('Collection attempting to query:', 'events_and_sessions');
+      console.log('Appwrite Endpoint:', process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT);
+      console.log('Appwrite Project ID:', process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID);
+      // === DIAGNOSTIC LOGS END ===
+
       if (!postId) {
         setError('No post ID provided');
         setLoading(false);
@@ -50,27 +60,51 @@ export default function StandalonePostView() {
       }
 
       // Clean and validate postId
-      const cleanPostId = typeof postId === 'string' ? postId.trim() : String(postId).trim();
+      const cleanPostId = typeof postId === 'string'
+        ? decodeURIComponent(postId).trim()
+        : decodeURIComponent(String(postId)).trim();
+      console.log('Cleaned postId (decoded & trimmed):', cleanPostId);
 
       try {
         setLoading(true);
         setError('');
         
         // Fetch post from events_and_sessions collection
+        console.log('Attempting to fetch document with params:', {
+          databaseId,
+          collectionId: 'events_and_sessions',
+          documentId: cleanPostId,
+        });
+
         const eventResponse = await databases.getDocument(
-          process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID!,
+          databaseId,
           'events_and_sessions',
           cleanPostId
         );
         
+        console.log('Appwrite getDocument response received.');
+        console.log('Document keys:', Object.keys(eventResponse || {}));
+        console.log('Document $id:', (eventResponse as any)?.$id);
+        console.log('Document title:', (eventResponse as any)?.title);
+
         if (eventResponse) {
           setPost(eventResponse as unknown as Post);
+          console.log('Post state set successfully for $id:', (eventResponse as any)?.$id);
         } else {
           setError('Post not found');
+          console.warn('Empty response from Appwrite for document:', cleanPostId);
         }
         
       } catch (err) {
         console.error('Error loading post:', err);
+        try {
+          const anyErr = err as any;
+          console.error('Error name:', anyErr?.name);
+          console.error('Error code:', anyErr?.code);
+          console.error('Error type:', anyErr?.type);
+          console.error('Error response:', anyErr?.response);
+          console.error('Error message:', anyErr?.message);
+        } catch {}
         setError('Post not found or no longer available');
       } finally {
         setLoading(false);
