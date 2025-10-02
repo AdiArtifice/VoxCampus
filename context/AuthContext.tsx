@@ -58,19 +58,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const getCurrent = useCallback(async () => {
     try {
+      console.debug('[AuthProvider] Fetching current user session...');
       const current = await account.get<Models.User<Models.Preferences>>();
+      console.debug('[AuthProvider] User session found:', { id: current.$id, email: current.email, name: current.name });
       setUser(current);
-    } catch {
+    } catch (error) {
+      console.debug('[AuthProvider] No active session found or session expired');
       setUser(null);
     }
   }, []);
 
   useEffect(() => {
-    // Initialize auth state on mount
+    // Initialize auth state on mount and check for existing session
     (async () => {
+      console.debug('[AuthProvider] Initializing authentication state...');
       setInitializing(true);
-      await getCurrent();
-      setInitializing(false);
+      try {
+        await getCurrent();
+        console.debug('[AuthProvider] Authentication state initialized successfully');
+      } catch (error) {
+        console.debug('[AuthProvider] Failed to initialize auth state:', error);
+      } finally {
+        setInitializing(false);
+      }
     })();
   }, [getCurrent]);
 

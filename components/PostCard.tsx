@@ -5,42 +5,50 @@ import IconLike from '@/assets/images/IconLike';
 import IconComment from '@/assets/images/IconComment';
 import IconShare from '@/assets/images/IconShare';
 import IconSave from '@/assets/images/IconSave';
+import { useLikes } from '@/hooks/useLikes';
+import { useComments } from '@/hooks/useComments';
+import Comments from './Comments';
 
 type PostCardProps = {
+  postId: string; // Required for likes and comments functionality
   userName: string;
   userAvatar?: string;
   content?: string;
   image?: string;
-  likesCount?: number;
-  commentsCount?: number;
   rsvpUrl?: string;
   meetingUrl?: string;
   infoUrl?: string;
-  onLike?: () => void;
-  onComment?: () => void;
   onShare?: () => void;
   onSave?: () => void;
 };
 
 const PostCard: React.FC<PostCardProps> = ({
+  postId,
   userName,
   userAvatar,
   content,
   image,
-  likesCount = 0,
-  commentsCount = 0,
   rsvpUrl,
   meetingUrl,
   infoUrl,
-  onLike,
-  onComment,
   onShare,
   onSave
 }) => {
+  // Likes functionality using custom hook
+  const { isLiked, likesCount, toggleLike, loading: likesLoading } = useLikes(postId);
+  
+  // Comments functionality using custom hook
+  const { commentsCount } = useComments(postId);
+  
+  // Comments section visibility state
+  const [showComments, setShowComments] = useState(false);
+  
+  // Existing state management
   const [avatarFailed, setAvatarFailed] = useState(false);
   const onAvatarError = useCallback(() => setAvatarFailed(true), []);
   const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
   const [contentWidth, setContentWidth] = useState(0);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -68,12 +76,51 @@ const PostCard: React.FC<PostCardProps> = ({
     }
   }, []);
 
+  // Extract title from content (first line or first sentence)
+  const extractTitle = useCallback((text?: string): string => {
+    if (!text) return 'Untitled Post';
+    
+    // Split by lines and take the first non-empty line
+    const lines = text.split('\n').filter(line => line.trim().length > 0);
+    if (lines.length > 0) {
+      const firstLine = lines[0].trim();
+      // If the first line is longer than 80 characters, truncate at word boundary
+      if (firstLine.length > 80) {
+        const truncated = firstLine.substring(0, 80);
+        const lastSpaceIndex = truncated.lastIndexOf(' ');
+        return lastSpaceIndex > 0 ? truncated.substring(0, lastSpaceIndex) + '...' : truncated + '...';
+      }
+      return firstLine;
+    }
+    
+    return 'Untitled Post';
+  }, []);
+
   const renderContent = useCallback(() => {
     if (!content) return null;
+    
     const urlRegex = /(https?:\/\/[^\s]+)/gi;
+    
+    // If not expanded, show only title with "Show More" button
+    if (!isExpanded) {
+      const title = extractTitle(content);
+      return (
+        <View>
+          <Text style={styles.titleText}>{title}</Text>
+          <TouchableOpacity 
+            style={styles.showMoreButton} 
+            onPress={() => setIsExpanded(true)}
+          >
+            <Text style={styles.showMoreText}>Show More</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    
+    // If expanded, show full content with "Show Less" button
     const parts = content.split(urlRegex);
-    if (parts.length === 1) return <Text style={styles.contentText}>{content}</Text>;
-    return (
+    const fullContentElement = parts.length === 1 ? 
+      <Text style={styles.contentText}>{content}</Text> :
       <Text style={styles.contentText}>
         {parts.map((part, idx) => {
           if (urlRegex.test(part)) {
@@ -87,9 +134,20 @@ const PostCard: React.FC<PostCardProps> = ({
           }
           return <Fragment key={idx}>{part}</Fragment>;
         })}
-      </Text>
+      </Text>;
+    
+    return (
+      <View>
+        {fullContentElement}
+        <TouchableOpacity 
+          style={styles.showLessButton} 
+          onPress={() => setIsExpanded(false)}
+        >
+          <Text style={styles.showLessText}>Show Less</Text>
+        </TouchableOpacity>
+      </View>
     );
-  }, [content, openUrl]);
+  }, [content, openUrl, isExpanded, extractTitle]);
 
   return (
     <View style={styles.container}>
@@ -156,26 +214,67 @@ const PostCard: React.FC<PostCardProps> = ({
       <View style={styles.divider} />
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionButton} onPress={onLike}>
-          <IconLike width={30} height={30} />
+        {/* Like Button - Changes color when liked, shows loading state */}
+        <TouchableOpacity 
+          style={styles.actionButton} 
+          onPress={toggleLike}
+          disabled={likesLoading}
+        >
+          <IconLike 
+            width={30} 
+            height={30} 
+            color={isLiked ? '#4a90e2' : COLORS.black} // VoxCampus primary color when liked
+          />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton} onPress={onComment}>
-          <IconComment width={30} height={30} />
+        
+        {/* Comment Button - Opens/closes comments section */}
+        <TouchableOpacity 
+          style={styles.actionButton} 
+          onPress={() => setShowComments(!showComments)}
+        >
+          <IconComment 
+            width={30} 
+            height={30} 
+            color={showComments ? '#4a90e2' : COLORS.black} // Highlight when comments are open
+          />
         </TouchableOpacity>
+        
+        {/* Share Button */}
         <TouchableOpacity style={styles.actionButton} onPress={onShare}>
           <IconShare width={30} height={30} />
         </TouchableOpacity>
+        
         <View style={styles.spacer} />
+        
+        {/* Save Button */}
         <TouchableOpacity style={styles.actionButton} onPress={onSave}>
           <IconSave width={25} height={25} />
         </TouchableOpacity>
       </View>
 
+      {/* Stats Section - Shows likes and comments count */}
       <View style={styles.stats}>
-        <Text style={styles.commentsText}>
-          Comment {commentsCount.toString().padStart(2, '0')}
-        </Text>
+        <View style={styles.statsLeft}>
+          {/* Likes Count Display */}
+          <Text style={styles.likesText}>
+            {likesCount > 0 ? `${likesCount} ${likesCount === 1 ? 'like' : 'likes'}` : ''}
+          </Text>
+        </View>
+        
+        <View style={styles.statsRight}>
+          {/* Comments Count Display */}
+          <Text style={styles.commentsText}>
+            Comment {commentsCount.toString().padStart(2, '0')}
+          </Text>
+        </View>
       </View>
+
+      {/* Comments Section - Collapsible */}
+      <Comments
+        postId={postId}
+        isVisible={showComments}
+        onClose={() => setShowComments(false)}
+      />
     </View>
   );
 };
@@ -265,14 +364,58 @@ const styles = StyleSheet.create({
   },
   stats: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     paddingHorizontal: SIZES.md,
-    paddingBottom: SIZES.xs
+    paddingBottom: SIZES.xs,
+    paddingTop: SIZES.xs
+  },
+  statsLeft: {
+    flex: 1,
+    justifyContent: 'flex-start'
+  },
+  statsRight: {
+    flex: 1,
+    alignItems: 'flex-end'
+  },
+  likesText: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: '#4a90e2', // VoxCampus primary color for likes
+    fontWeight: '500'
   },
   commentsText: {
     fontFamily: FONTS.regular,
     fontSize: 10,
     color: COLORS.white
+  },
+  titleText: {
+    padding: SIZES.sm,
+    fontFamily: FONTS.body,
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.black
+  },
+  showMoreButton: {
+    paddingHorizontal: SIZES.sm,
+    paddingBottom: SIZES.xs,
+    alignSelf: 'flex-start'
+  },
+  showMoreText: {
+    fontFamily: FONTS.body,
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '500'
+  },
+  showLessButton: {
+    paddingHorizontal: SIZES.sm,
+    paddingTop: SIZES.xs,
+    alignSelf: 'flex-start'
+  },
+  showLessText: {
+    fontFamily: FONTS.body,
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '500'
   }
 });
 

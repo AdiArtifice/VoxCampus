@@ -139,6 +139,7 @@ const HomeScreen = () => {
         {!loading && !error && feedItems.map(post => (
           <PostCard
             key={post.id}
+            postId={post.id} // Pass postId for likes and comments functionality
             userName={post.userName}
             userAvatar={post.userAvatar}
             content={post.content}
@@ -146,8 +147,6 @@ const HomeScreen = () => {
             rsvpUrl={post.rsvpUrl}
             meetingUrl={post.meetingUrl}
             infoUrl={post.infoUrl}
-            onLike={() => console.log('Like pressed')}
-            onComment={() => console.log('Comment pressed')}
             onShare={() => console.log('Share pressed')}
             onSave={() => console.log('Save pressed')}
           />
