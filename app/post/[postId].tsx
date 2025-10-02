@@ -38,41 +38,81 @@ export default function PostDetailScreen() {
 
   useEffect(() => {
     const loadPost = async () => {
+      console.log('🔍 === POST DEBUG SESSION START ===');
+      console.log('🔍 Raw useLocalSearchParams result:', useLocalSearchParams());
+      console.log('🔍 Extracted postId:', postId);
+      console.log('🔍 postId type:', typeof postId);
+      console.log('🔍 postId length:', postId?.length);
+      console.log('🔍 postId JSON.stringify:', JSON.stringify(postId));
+      
       if (!postId) {
+        console.log('❌ No postId provided');
         setError('No post ID provided');
         setLoading(false);
         return;
       }
 
+      // Clean and validate postId
+      const cleanPostId = typeof postId === 'string' ? postId.trim() : String(postId).trim();
+      console.log('🧹 Cleaned postId:', cleanPostId);
+      console.log('🧹 Cleaned postId length:', cleanPostId.length);
+
       try {
         setLoading(true);
         setError('');
         
-        console.log('Loading post with ID:', postId);
+        // Log database configuration
+        const databaseId = process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID;
+        const collectionId = 'events_and_sessions';
+        
+        console.log('🗄️ Database ID:', databaseId);
+        console.log('🗄️ Collection ID:', collectionId);
+        console.log('🗄️ Document ID (postId):', cleanPostId);
+        console.log('🗄️ Full query params:', { databaseId, collectionId, documentId: cleanPostId });
+        
+        console.log('📡 Attempting database query...');
         
         // Try to fetch from events_and_sessions collection
         const eventResponse = await databases.getDocument(
-          process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID!,
-          'events_and_sessions',
-          postId as string
+          databaseId!,
+          collectionId,
+          cleanPostId
         );
         
-        console.log('Found post:', eventResponse);
+        console.log('✅ Database query successful!');
+        console.log('📄 Found post data:', eventResponse);
+        console.log('📄 Post $id:', eventResponse.$id);
+        console.log('📄 Post title:', eventResponse.title);
+        console.log('📄 Post keys:', Object.keys(eventResponse));
         
         if (eventResponse) {
           setPost(eventResponse as unknown as Post);
+          console.log('✅ Post state updated successfully');
         } else {
+          console.log('❌ Empty response from database');
           setError('Post not found');
         }
         
       } catch (err) {
-        console.error('Error loading post:', err);
+        console.log('🚨 === ERROR DETAILS ===');
+        console.error('❌ Full error object:', err);
+        console.error('❌ Error name:', err instanceof Error ? err.name : 'Unknown');
+        console.error('❌ Error message:', err instanceof Error ? err.message : String(err));
+        console.error('❌ Error stack:', err instanceof Error ? err.stack : 'No stack');
+        
+        // Check if it's an Appwrite error with more details
+        if (err && typeof err === 'object' && 'code' in err) {
+          console.error('❌ Appwrite error code:', (err as any).code);
+          console.error('❌ Appwrite error type:', (err as any).type);
+          console.error('❌ Appwrite error response:', (err as any).response);
+        }
+        
         setError('Post not found or no longer available');
         
         // Show alert for missing post
         Alert.alert(
           'Post Not Found',
-          'The post you\'re looking for doesn\'t exist or has been removed.',
+          `The post you're looking for doesn't exist or has been removed.\n\nPost ID: ${cleanPostId}\nError: ${err instanceof Error ? err.message : String(err)}`,
           [
             { text: 'Go Back', onPress: () => router.back() },
             { text: 'Go Home', onPress: () => router.replace('/') }
@@ -80,6 +120,7 @@ export default function PostDetailScreen() {
         );
       } finally {
         setLoading(false);
+        console.log('🔍 === POST DEBUG SESSION END ===');
       }
     };
 

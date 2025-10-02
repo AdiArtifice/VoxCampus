@@ -1,12 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
 import { COLORS, FONTS, SIZES } from '@/constants/theme';
 import { useShare } from '@/hooks/useShare';
 import { buildShareablePostUrl, getEnvironmentConfig } from '@/constants/environment';
+import { databases } from '@/lib/appwrite';
+
+interface DatabasePost {
+  $id: string;
+  title: string;
+  organizer?: string;
+  type?: string;
+}
 
 export default function ShareDebugScreen() {
+  const router = useRouter();
   const { sharePost, copyPostUrl, isSharing } = useShare();
   const [testResults, setTestResults] = useState<string[]>([]);
+  const [availablePosts, setAvailablePosts] = useState<DatabasePost[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadAvailablePosts();
+  }, []);
+
+  const loadAvailablePosts = async () => {
+    try {
+      setLoading(true);
+      addResult('Loading available posts from database...');
+      
+      const response = await databases.listDocuments(
+        process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID!,
+        'events_and_sessions'
+      );
+      
+      addResult(`Found ${response.documents.length} posts in database`);
+      setAvailablePosts(response.documents as unknown as DatabasePost[]);
+      
+      // Log all post IDs for debugging
+      response.documents.forEach((post: any) => {
+        addResult(`Post: "${post.title}" - ID: ${post.$id}`);
+      });
+      
+    } catch (error) {
+      addResult(`❌ Error loading posts: ${error}`);
+      console.error('Error loading posts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const addResult = (message: string) => {
     setTestResults(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
@@ -66,6 +108,31 @@ export default function ShareDebugScreen() {
     }
   };
 
+  const testPostUrl = (postId: string, title: string) => {
+    addResult(`Testing post URL for: ${title} (${postId})`);
+    router.push(`/post/${postId}`);
+  };
+
+  const shareRealPost = async (postId: string, title: string) => {
+    addResult(`Sharing real post: ${title} (${postId})`);
+    
+    try {
+      const result = await sharePost(postId, { 
+        includeText: true, 
+        fallbackToCopy: true 
+      });
+      
+      if (result.success) {
+        addResult(`✅ Real post share result: ${result.shared ? 'Shared' : 'Copied'}`);
+        addResult(`URL: ${result.url}`);
+      } else {
+        addResult(`❌ Real post share failed: ${result.error}`);
+      }
+    } catch (error) {
+      addResult(`❌ Real post share error: ${error}`);
+    }
+  };
+
   const clearResults = () => {
     setTestResults([]);
   };
@@ -84,6 +151,41 @@ export default function ShareDebugScreen() {
           <Text style={styles.infoText}>Share URL: {envConfig.shareBaseUrl}</Text>
           <Text style={styles.infoText}>Is Production: {envConfig.isProduction ? 'Yes' : 'No'}</Text>
           <Text style={styles.infoText}>Is Development: {envConfig.isDevelopment ? 'Yes' : 'No'}</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Available Posts ({availablePosts.length})</Text>
+          {loading ? (
+            <Text style={styles.infoText}>Loading posts...</Text>
+          ) : (
+            availablePosts.map((post) => (
+              <View key={post.$id} style={styles.postItem}>
+                <Text style={styles.postTitle} numberOfLines={2}>
+                  {post.title}
+                </Text>
+                <Text style={styles.postId}>ID: {post.$id}</Text>
+                <Text style={styles.postInfo}>
+                  Organizer: {post.organizer || 'Unknown'} | Type: {post.type || 'Unknown'}
+                </Text>
+                
+                <View style={styles.postActions}>
+                  <TouchableOpacity 
+                    style={[styles.button, styles.smallButton, styles.testButton]} 
+                    onPress={() => testPostUrl(post.$id, post.title)}
+                  >
+                    <Text style={styles.buttonText}>Test URL</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.button, styles.smallButton, styles.shareButton]} 
+                    onPress={() => shareRealPost(post.$id, post.title)}
+                  >
+                    <Text style={styles.buttonText}>Share</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
         </View>
 
         <View style={styles.section}>
@@ -226,5 +328,41 @@ const styles = StyleSheet.create({
     color: COLORS.black,
     marginBottom: SIZES.xs,
     lineHeight: 16,
+  },
+  postItem: {
+    backgroundColor: '#f8f9fa',
+    padding: SIZES.sm,
+    borderRadius: SIZES.borderRadius.sm,
+    marginBottom: SIZES.sm,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  postTitle: {
+    fontFamily: FONTS.body,
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.black,
+    marginBottom: SIZES.xs,
+  },
+  postId: {
+    fontFamily: 'Courier New',
+    fontSize: 12,
+    color: COLORS.primary,
+    marginBottom: SIZES.xs,
+  },
+  postInfo: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.gray,
+    marginBottom: SIZES.sm,
+  },
+  postActions: {
+    flexDirection: 'row',
+    gap: SIZES.sm,
+  },
+  smallButton: {
+    flex: 1,
+    padding: SIZES.sm,
+    marginBottom: 0,
   },
 });
