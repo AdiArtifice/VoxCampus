@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -45,6 +45,7 @@ export default function StandalonePostCard({
 }: StandalonePostCardProps) {
   const { sharePost, isSharing } = useShare();
   const [imageError, setImageError] = useState(false);
+  const [imageAspect, setImageAspect] = useState<number | null>(null);
 
   const handleOpenUrl = async (url: string, fallbackText: string) => {
     try {
@@ -96,6 +97,64 @@ export default function StandalonePostCard({
     }
   };
 
+  // Pre-compute safe date display (avoid reversed ranges if end < start)
+  const showDateRange = (() => {
+    if (startAt && endAt) {
+      const s = new Date(startAt).getTime();
+      const e = new Date(endAt).getTime();
+      if (!isNaN(s) && !isNaN(e) && e >= s) return true;
+    }
+    return false;
+  })();
+
+  useEffect(() => {
+    if (bannerUrl) {
+      // Attempt to get intrinsic size for better aspect ratio display (web friendly)
+      Image.getSize(
+        bannerUrl,
+        (w, h) => {
+          if (w > 0 && h > 0) setImageAspect(h / w);
+        },
+        () => setImageAspect(null)
+      );
+    }
+  }, [bannerUrl]);
+
+  const renderDescription = () => {
+    if (!description) return null;
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    // Split by newline first to preserve paragraphs
+    const paragraphs = description.split(/\n+/);
+    return (
+      <View style={styles.descriptionWrapper}>
+        {paragraphs.map((para, pIdx) => {
+          if (!para.trim()) return <Text key={pIdx} style={styles.descriptionEmptyLine}> </Text>;
+          const parts = para.split(urlRegex);
+            return (
+              <Text key={pIdx} style={styles.description}>
+                {parts.map((part, idx) => {
+                  if (urlRegex.test(part)) {
+                    urlRegex.lastIndex = 0; // reset for subsequent tests
+                    return (
+                      <Text
+                        key={idx}
+                        style={styles.linkText}
+                        onPress={() => handleOpenUrl(part, 'Link')}
+                      >
+                        {part}
+                      </Text>
+                    );
+                  }
+                  return <Text key={idx}>{part}</Text>;
+                })}
+                {pIdx < paragraphs.length - 1 ? '\n' : ''}
+              </Text>
+            );
+        })}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -128,7 +187,7 @@ export default function StandalonePostCard({
               <Text style={styles.detailIcon}>📅</Text>
               <Text style={styles.detailText}>
                 {formatDate(startAt)}
-                {endAt && ` - ${formatDate(endAt)}`}
+                {showDateRange && endAt && ` - ${formatDate(endAt)}`}
               </Text>
             </View>
             
@@ -137,7 +196,7 @@ export default function StandalonePostCard({
                 <Text style={styles.detailIcon}>🕒</Text>
                 <Text style={styles.detailText}>
                   {formatTime(startAt)}
-                  {endAt && ` - ${formatTime(endAt)}`}
+                  {showDateRange && endAt && ` - ${formatTime(endAt)}`}
                 </Text>
               </View>
             )}
@@ -156,15 +215,20 @@ export default function StandalonePostCard({
           <View style={styles.imageContainer}>
             <Image
               source={{ uri: bannerUrl }}
-              style={styles.bannerImage}
+              style={[
+                styles.bannerImage,
+                imageAspect
+                  ? { height: Math.min(400, Math.max(160, (screenWidth > 640 ? 600 : screenWidth - 32) * imageAspect)) }
+                  : null,
+              ]}
               onError={() => setImageError(true)}
               resizeMode="cover"
             />
           </View>
         )}
 
-        {/* Description */}
-        <Text style={styles.description}>{description}</Text>
+        {/* Description with linkification & preserved paragraphs */}
+        {renderDescription()}
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
@@ -231,14 +295,12 @@ const styles = StyleSheet.create({
     marginHorizontal: SIZES.md,
     marginVertical: SIZES.sm,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
-    overflow: 'hidden',
+    // Allow description / image shadows to render fully
+    overflow: Platform.OS === 'web' ? 'visible' : 'hidden',
     maxWidth: 600,
     alignSelf: 'center',
     width: '100%',
@@ -322,15 +384,25 @@ const styles = StyleSheet.create({
   },
   bannerImage: {
     width: '100%',
-    height: 200,
+    height: 200, // default; dynamic height may override
     backgroundColor: COLORS.lightGray,
+  },
+  descriptionWrapper: {
+    marginBottom: SIZES.lg,
   },
   description: {
     fontFamily: FONTS.body,
     fontSize: 16,
     color: COLORS.black,
     lineHeight: 24,
-    marginBottom: SIZES.lg,
+    textAlign: 'left',
+  },
+  descriptionEmptyLine: {
+    lineHeight: 12,
+  },
+  linkText: {
+    color: '#1F6FEB',
+    textDecorationLine: 'underline',
   },
   actionButtons: {
     flexDirection: 'row',
