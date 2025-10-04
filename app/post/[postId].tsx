@@ -7,7 +7,6 @@ import {
   ActivityIndicator, 
   TouchableOpacity,
   Linking,
-  SafeAreaView,
   Platform,
   Dimensions
 } from 'react-native';
@@ -131,26 +130,24 @@ export default function StandalonePostView() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.fullscreen}> 
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Loading post...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error || !post) {
     return (
-      <SafeAreaView style={styles.container}>
-        {/* VoxCampus Header */}
+      <View style={styles.fullscreen}>
         <View style={styles.header}>
           <Text style={styles.brandName}>VoxCampus</Text>
           <TouchableOpacity style={styles.ctaButton} onPress={handleOpenApp}>
             <Text style={styles.ctaButtonText}>Explore More Posts</Text>
           </TouchableOpacity>
         </View>
-
         <View style={styles.errorContainer}>
           <Text style={styles.errorEmoji}>😔</Text>
           <Text style={styles.errorTitle}>Post Not Found</Text>
@@ -161,12 +158,12 @@ export default function StandalonePostView() {
             <Text style={styles.goHomeButtonText}>Discover Other Posts</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.fullscreen}>
       {/* Meta Tags for Social Sharing */}
       <PostHead
         title={post.title}
@@ -183,10 +180,11 @@ export default function StandalonePostView() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator
       >
         {/* Standalone Post Card */}
         <StandalonePostCard
@@ -215,14 +213,15 @@ export default function StandalonePostView() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  fullscreen: {
     flex: 1,
     backgroundColor: COLORS.background,
+    minHeight: '100%',
   },
   header: {
     flexDirection: 'row',
@@ -263,6 +262,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingVertical: SIZES.lg,
     paddingHorizontal: Platform.OS === 'web' ? Math.max(SIZES.md, (screenWidth - 600) / 2) : SIZES.md,
+    flexGrow: 1,
   },
   loadingContainer: {
     flex: 1,
