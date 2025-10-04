@@ -5,17 +5,13 @@ import HomeScreen from '@/screens/HomeScreen';
 import ExploreScreen from '@/screens/ExploreScreen';
 import ConnectScreen from '@/screens/ConnectScreen';
 import AssociationsScreen from '@/screens/AssociationsScreen';
+import CreateScreen from '@/screens/CreateScreen';
 import TabBar from '@/components/TabBar';
 import { MainTabParamList } from './types';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigation } from '@react-navigation/native';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
-
-// Placeholder screen for Add functionality
-const AddScreen = () => {
-  return null;
-};
 
 // Profile launcher (hidden in tab bar). Navigation handled via top header.
 const ProfileLauncher = () => {
@@ -50,15 +46,10 @@ const MainTabNavigator = () => {
       <Tab.Screen name="Explore" component={ExploreScreen} />
       <Tab.Screen 
         name="Add" 
-        component={AddScreen} 
-        listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            // Prevent default action
-            e.preventDefault();
-            // Create post flow would go here
-            console.log('Add post pressed');
-          },
-        })}
+        component={CreateScreen}
+        options={{
+          title: 'Create'
+        }}
       />
       <Tab.Screen name="Connect" component={ConnectScreen} />
       <Tab.Screen name="Associations" component={AssociationsScreen} />
