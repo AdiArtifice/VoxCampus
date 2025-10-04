@@ -299,8 +299,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
-    // Allow description / image shadows to render fully
-    overflow: Platform.OS === 'web' ? 'visible' : 'hidden',
+    overflow: 'visible',
     maxWidth: 600,
     alignSelf: 'center',
     width: '100%',

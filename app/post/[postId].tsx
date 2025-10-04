@@ -16,6 +16,7 @@ import StandalonePostCard from '@/components/StandalonePostCard';
 import PostHead from '@/components/PostHead';
 import { databases } from '@/lib/appwrite';
 import { APPWRITE, assertConfig } from '@/lib/config';
+import Head from 'expo-router/head';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -164,6 +165,24 @@ export default function StandalonePostView() {
 
   return (
     <View style={styles.fullscreen}>
+      {Platform.OS === 'web' && (
+        <Head>
+          <style>{`
+            html, body { 
+              height: 100%; 
+              overflow: auto; 
+              margin: 0; 
+              padding: 0; 
+            }
+            #__next { 
+              height: 100vh; 
+              display: flex; 
+              flex-direction: column; 
+            }
+          `}</style>
+        </Head>
+      )}
+      
       {/* Meta Tags for Social Sharing */}
       <PostHead
         title={post.title}
@@ -184,7 +203,9 @@ export default function StandalonePostView() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator
+        showsVerticalScrollIndicator={true}
+        nestedScrollEnabled={true}
+        bounces={false}
       >
         {/* Standalone Post Card */}
         <StandalonePostCard
@@ -221,7 +242,10 @@ const styles = StyleSheet.create({
   fullscreen: {
     flex: 1,
     backgroundColor: COLORS.background,
-    minHeight: '100%',
+    ...(Platform.OS === 'web' ? {
+      minHeight: '100vh' as any,
+      height: '100vh' as any,
+    } : {}),
   },
   header: {
     flexDirection: 'row',
@@ -263,6 +287,7 @@ const styles = StyleSheet.create({
     paddingVertical: SIZES.lg,
     paddingHorizontal: Platform.OS === 'web' ? Math.max(SIZES.md, (screenWidth - 600) / 2) : SIZES.md,
     flexGrow: 1,
+    minHeight: Platform.OS === 'web' ? '100%' as any : undefined,
   },
   loadingContainer: {
     flex: 1,
