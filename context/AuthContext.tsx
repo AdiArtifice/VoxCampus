@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { account, ID, databases, Query } from '@/lib/appwrite';
+import { account, ID, databases, Query, storage } from '@/lib/appwrite';
+import * as FileSystem from 'expo-file-system';
 import { APPWRITE } from '@/lib/config';
 import type { Models } from 'react-native-appwrite';
 import * as Linking from 'expo-linking';
@@ -30,6 +31,51 @@ export interface UserRole {
   organizationName?: string;
 }
 
+export interface ProfileEducation {
+  program?: string;
+  department?: string;
+  year?: string;
+}
+
+export interface ProfileProject {
+  title: string;
+  description?: string;
+  link?: string;
+}
+
+export interface ProfileSocialLinks {
+  github?: string;
+  linkedin?: string;
+  portfolio?: string;
+}
+
+export interface ProfileAvatar {
+  bucketId: string;
+  fileId: string;
+  url: string;
+}
+
+export interface ProfilePreferences {
+  bio?: string;
+  education?: ProfileEducation;
+  skills?: string[];
+  projects?: ProfileProject[];
+  socialLinks?: ProfileSocialLinks;
+  achievements?: string[];
+  avatar?: ProfileAvatar;
+}
+
+export interface UpdateProfileInput {
+  name?: string;
+  bio?: string;
+  education?: ProfileEducation;
+  skills?: string[];
+  projects?: ProfileProject[];
+  socialLinks?: ProfileSocialLinks;
+  achievements?: string[];
+  avatar?: ProfileAvatar | null;
+}
+
 type AuthContextType = {
   user: AuthUser;
   userRoles: UserRole[];
@@ -44,6 +90,8 @@ type AuthContextType = {
   sendVerificationEmail: (redirectUrl?: string) => Promise<void>;
   verifyEmail: (userId: string, secret: string) => Promise<void>;
   signInWithGoogle: () => Promise<AuthUser>;
+  updateProfile: (updates: UpdateProfileInput) => Promise<void>;
+  uploadAvatar: (uri: string) => Promise<ProfileAvatar>;
 };
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -78,28 +126,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [initializing, setInitializing] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(false);
+  const resolveDatabaseId = useCallback(() => APPWRITE.DATABASE_ID || '68c58e83000a2666b4d9', []);
 
   // Mount/unmount diagnostics
   useEffect(() => {
     console.debug('[AuthProvider] mounted');
     return () => console.debug('[AuthProvider] unmounted');
-  }, []);
+  }, [resolveDatabaseId]);
 
   const fetchMemberships = useCallback(async (userEmail: string) => {
     try {
       console.debug('[AuthProvider] Fetching user memberships for email:', userEmail);
       setLoading(true);
 
+      const databaseId = resolveDatabaseId();
+
       // First, let's fetch all memberships to debug
       const allMemberships = await databases.listDocuments(
-        APPWRITE.DATABASE_ID,
+        databaseId,
         'membership'
       );
       console.debug('[AuthProvider] All memberships in database:', allMemberships.documents.map(doc => ({ userId: doc.userId, orgId: doc.orgId, role: doc.role })));
 
       // Fetch user memberships from Appwrite using email (since membership.userId stores email addresses)
       let membershipResponse = await databases.listDocuments(
-        APPWRITE.DATABASE_ID,
+        databaseId,
         'membership',
         [Query.equal('userId', userEmail)]
       );
@@ -138,7 +189,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         memberships.map(async (membership) => {
           try {
             const orgResponse = await databases.getDocument(
-              APPWRITE.DATABASE_ID,
+              databaseId,
               'association',
               membership.orgId
             );
@@ -188,7 +239,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const current = await account.get<Models.User<Models.Preferences>>();
       console.debug('[AuthProvider] User session found:', { id: current.$id, email: current.email, name: current.name });
       console.debug('[AuthProvider] Full user object:', JSON.stringify(current, null, 2));
-      setUser(current);
+      let hydratedUser = current;
+
+      // Attempt to hydrate avatar from public_users collection if present
+      try {
+        const PUBLIC_USERS_COLLECTION = 'public_users';
+        const deterministicId = `user_${current.$id}`;
+        const databaseId = resolveDatabaseId();
+        let publicDoc: any | null = null;
+        try {
+          publicDoc = await databases.getDocument(databaseId, PUBLIC_USERS_COLLECTION, deterministicId);
+        } catch {}
+        if (publicDoc) {
+          const avatarBucket = publicDoc.avatar_bucket_id;
+          const avatarFile = publicDoc.avatar_file_id;
+            const avatarUrl = publicDoc.avatar_url;
+            if (avatarBucket && avatarFile && avatarUrl) {
+              const prefs: any = hydratedUser.prefs || {};
+              const profile: any = prefs.profile || {};
+              if (!profile.avatar || !profile.avatar.url) {
+                profile.avatar = { bucketId: avatarBucket, fileId: avatarFile, url: avatarUrl };
+                prefs.profile = profile;
+                hydratedUser = { ...hydratedUser, prefs };
+              }
+            }
+        }
+      } catch (e) {
+        console.debug('[AuthProvider] Could not hydrate avatar from public_users (deterministic):', e);
+      }
+
+      setUser(hydratedUser);
       
       // Fetch memberships when user is loaded (match by email since membership.userId stores email addresses)
       if (current.email) {
@@ -203,7 +283,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUserMemberships([]);
       setUserRoles([]);
     }
-  }, [fetchMemberships]);
+  }, [fetchMemberships, resolveDatabaseId]);
 
   useEffect(() => {
     // Initialize auth state on mount and check for existing session
@@ -272,6 +352,199 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const refresh = useCallback(async () => {
     await getCurrent();
   }, [getCurrent]);
+
+  const updateProfile = useCallback(async (updates: UpdateProfileInput) => {
+    if (!user) {
+      throw new Error('No authenticated user');
+    }
+
+    const trimmedName = updates.name?.trim();
+
+    try {
+      if (trimmedName && trimmedName !== user.name) {
+        await account.updateName(trimmedName);
+      }
+
+      const currentPrefs = await account.getPrefs<Record<string, any>>();
+      const existingProfile: ProfilePreferences = (currentPrefs.profile as ProfilePreferences) ?? {};
+
+      const nextProfile: ProfilePreferences = {
+        ...existingProfile,
+      };
+
+      if ('bio' in updates) {
+        nextProfile.bio = updates.bio ?? '';
+      }
+
+      if ('education' in updates) {
+        nextProfile.education = updates.education ?? {};
+      }
+
+      if ('skills' in updates) {
+        nextProfile.skills = updates.skills ?? [];
+      }
+
+      if ('projects' in updates) {
+        nextProfile.projects = updates.projects ?? [];
+      }
+
+      if ('socialLinks' in updates) {
+        nextProfile.socialLinks = updates.socialLinks ?? {};
+      }
+
+      if ('achievements' in updates) {
+        nextProfile.achievements = updates.achievements ?? [];
+      }
+
+      if ('avatar' in updates) {
+        if (updates.avatar) {
+          nextProfile.avatar = updates.avatar;
+        } else {
+          delete nextProfile.avatar;
+        }
+      }
+
+      const mergedPrefs = {
+        ...currentPrefs,
+        profile: nextProfile,
+      };
+
+      await account.updatePrefs(mergedPrefs);
+
+      setUser(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          name: trimmedName ? trimmedName : prev.name,
+          prefs: {
+            ...prev.prefs,
+            ...mergedPrefs,
+          },
+        } as Models.User<Models.Preferences>;
+      });
+
+      const refreshed = await account.get<Models.User<Models.Preferences>>();
+      setUser(refreshed);
+    } catch (error) {
+      console.error('[AuthProvider] Failed to update profile:', error);
+      throw error;
+    }
+  }, [user]);
+
+  const uploadAvatar = useCallback(async (uri: string): Promise<ProfileAvatar> => {
+    if (!user) {
+      throw new Error('No authenticated user');
+    }
+
+    const endpoint = process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT;
+    const project = process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID;
+    if (!endpoint || !project) {
+      throw new Error('Appwrite endpoint or project not configured');
+    }
+
+    const bucketId = process.env.EXPO_PUBLIC_APPWRITE_AVATAR_BUCKET_ID || 'user_profile_images';
+    const databaseId = resolveDatabaseId();
+    const collectionId = process.env.EXPO_PUBLIC_APPWRITE_PUBLIC_USERS_COLLECTION_ID || 'public_users';
+
+    try {
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      if (!fileInfo.exists) {
+        throw new Error('Selected file is not accessible');
+      }
+
+      const extension = uri.split('.').pop()?.toLowerCase();
+      const guessedType =
+        extension === 'png'
+          ? 'image/png'
+          : extension === 'heic'
+          ? 'image/heic'
+          : extension === 'webp'
+          ? 'image/webp'
+          : 'image/jpeg';
+      const fileName = `avatar-${user.$id}-${Date.now()}.${extension ?? 'jpg'}`;
+
+      const filePayload = {
+        uri,
+        name: fileName,
+        type: guessedType,
+        size: fileInfo.size ?? 0,
+      } as const;
+
+      console.debug('[AuthProvider] Uploading avatar', { fileName, bucketId, size: fileInfo.size });
+      
+      // Step 1: Upload to Appwrite Storage
+      const file = await storage.createFile(bucketId, ID.unique(), filePayload);
+      console.debug('[AuthProvider] Avatar file created', { fileId: file.$id, bucketId });
+
+      // Step 2: Generate public URL
+      const publicUrl = storage.getFileView(bucketId, file.$id).toString();
+      console.debug('[AuthProvider] Generated public avatar URL', { publicUrl });
+
+      // Step 3: Update public_users collection with BOTH avatar_url AND avatarUrl
+      const deterministicId = `user_${user.$id}`;
+      const profilePayload = {
+        user_id: user.$id,
+        name: user.name,
+        avatar_bucket_id: bucketId,
+        avatar_file_id: file.$id,
+        avatar_url: publicUrl,  // Legacy field
+        avatarUrl: publicUrl,   // New field as requested
+      };
+
+      console.debug('[AuthProvider] Updating profile document', { deterministicId, profilePayload });
+
+      try {
+        // Try to update existing document first
+        await databases.updateDocument(databaseId, collectionId, deterministicId, profilePayload);
+        console.debug('[AuthProvider] Updated existing public_users document');
+      } catch (updateErr) {
+        console.debug('[AuthProvider] Update failed, creating new document', updateErr);
+        try {
+          // If update fails, create new document
+          await databases.createDocument(databaseId, collectionId, deterministicId, profilePayload);
+          console.debug('[AuthProvider] Created new public_users document');
+        } catch (createErr) {
+          console.error('[AuthProvider] Failed to create profile document:', createErr);
+          throw new Error(`Failed to update user profile: ${createErr instanceof Error ? createErr.message : 'Unknown error'}`);
+        }
+      }
+
+      // Step 4: Update user preferences for immediate UI update
+      try {
+        const currentPrefs = await account.getPrefs<Record<string, any>>();
+        const existingProfile: ProfilePreferences = (currentPrefs.profile as ProfilePreferences) ?? {};
+        const nextProfile: ProfilePreferences = {
+          ...existingProfile,
+          avatar: { bucketId, fileId: file.$id, url: publicUrl },
+        };
+        
+        await account.updatePrefs({ ...currentPrefs, profile: nextProfile });
+        
+        // Update local state immediately for instant UI feedback
+        setUser(prev => {
+          if (!prev) return prev;
+          return { 
+            ...prev, 
+            prefs: { 
+              ...prev.prefs, 
+              profile: nextProfile 
+            } 
+          } as Models.User<Models.Preferences>;
+        });
+        
+        console.debug('[AuthProvider] Updated user preferences with new avatar');
+      } catch (prefsErr) {
+        console.warn('[AuthProvider] Failed to update user prefs (non-fatal):', prefsErr);
+      }
+
+      const result: ProfileAvatar = { bucketId, fileId: file.$id, url: publicUrl };
+      return result;
+
+    } catch (error) {
+      console.error('[AuthProvider] Avatar upload failed:', error);
+      throw error;
+    }
+  }, [user, resolveDatabaseId]);
 
   // Deep link handler for auth-callback (supports manual testing and cold/warm starts)
   const handlingRef = useRef(false);
@@ -361,7 +634,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     refreshMemberships, 
     sendVerificationEmail, 
     verifyEmail, 
-    signInWithGoogle 
+    signInWithGoogle,
+    updateProfile,
+    uploadAvatar,
   }), [
     user, 
     userRoles, 
@@ -375,7 +650,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     refreshMemberships, 
     sendVerificationEmail, 
     verifyEmail, 
-    signInWithGoogle
+    signInWithGoogle,
+    updateProfile,
+    uploadAvatar
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

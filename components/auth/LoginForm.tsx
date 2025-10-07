@@ -37,7 +37,6 @@ export const LoginForm: React.FC<Props> = ({ onSuccess, onSwitchToRegister }) =>
     }
   };
 
-
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Sign In</Text>
@@ -71,7 +70,7 @@ export const LoginForm: React.FC<Props> = ({ onSuccess, onSwitchToRegister }) =>
         }}
       />
       <Text style={styles.switchText} onPress={onSwitchToRegister}>
-        Don't have an account? Create one
+        {`Don\u2019t have an account? Create one`}
       </Text>
     </View>
   );

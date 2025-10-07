@@ -1,36 +1,69 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { COLORS, FONTS, SIZES } from '@/constants/theme';
+import type { ProfileEducation } from '@/context/AuthContext';
+import { UserAvatar } from '@/components/Avatar';
 
 type ProfileHeaderProps = {
   name: string;
   college?: string;
   description?: string;
-  avatar?: string;
+  userId: string; // Changed from avatarUrl to userId for automatic fetching
+  education?: ProfileEducation;
+  stats?: { label: string; value: string | number }[];
+  onPressChangeAvatar?: () => void;
+  isUploadingAvatar?: boolean;
 };
 
 const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   name,
   college = 'SJCEM',
   description = 'Student at St. John College of Engineering and Management',
-  avatar
+  userId,
+  education,
+  stats = [],
+  onPressChangeAvatar,
+  isUploadingAvatar = false,
 }) => {
+  const renderStat = ({ label, value }: { label: string; value: string | number }, index: number) => (
+    <View key={`${label}-${index}`} style={styles.statItem}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.headerBackground}>
         <View style={styles.avatarContainer}>
-          {avatar ? (
-            <Image source={{ uri: avatar }} style={styles.avatar} />
-          ) : (
-            <View style={styles.avatarPlaceholder} />
-          )}
+          <UserAvatar
+            userId={userId}
+            size={90}
+            onEditPress={onPressChangeAvatar}
+            isUploading={isUploadingAvatar}
+            userName={name}
+          />
         </View>
         <View style={styles.infoContainer}>
           <Text style={styles.name}>{name}</Text>
-          <Text style={styles.college}>{college}</Text>
+          {education?.program ? (
+            <Text style={styles.college}>{education.program}</Text>
+          ) : (
+            <Text style={styles.college}>{college}</Text>
+          )}
+          {education?.department || education?.year ? (
+            <Text style={styles.subTitle}>
+              {[education?.department, education?.year].filter(Boolean).join(' • ')}
+            </Text>
+          ) : null}
           <Text style={styles.description}>{description}</Text>
         </View>
       </View>
+      {stats.length ? (
+        <View style={styles.statsRow}>
+          {stats.map(renderStat)}
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -45,22 +78,8 @@ const styles = StyleSheet.create({
     paddingBottom: SIZES.xl * 2,
   },
   avatarContainer: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: COLORS.white,
-    overflow: 'hidden',
     alignSelf: 'center',
     marginBottom: SIZES.md
-  },
-  avatar: {
-    width: '100%',
-    height: '100%'
-  },
-  avatarPlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: COLORS.gray
   },
   infoContainer: {
     alignItems: 'center'
@@ -77,12 +96,46 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     marginBottom: SIZES.md
   },
+  subTitle: {
+    fontFamily: FONTS.body,
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.85)',
+    marginBottom: SIZES.sm,
+  },
   description: {
     fontFamily: FONTS.body,
     fontSize: 16,
     color: COLORS.white,
     textAlign: 'center'
-  }
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: SIZES.lg,
+    paddingVertical: SIZES.sm,
+    marginTop: -SIZES.xl,
+    marginHorizontal: SIZES.lg,
+    borderRadius: SIZES.borderRadius.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontFamily: FONTS.heading,
+    fontSize: 18,
+    color: COLORS.black,
+  },
+  statLabel: {
+    fontFamily: FONTS.body,
+    fontSize: 12,
+    color: '#6B7280',
+  },
 });
 
 export default ProfileHeader;

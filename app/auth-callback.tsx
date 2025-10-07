@@ -16,6 +16,10 @@ const log = (...args: any[]) => console.log('[AuthCallbackWeb]', ...args);
 export default function AuthCallback() {
   const router = useRouter();
   const isWeb = Platform.OS === 'web';
+  const { user, refresh } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(true);
+  const ranRef = useRef(false);
 
   // On native, immediately route back to Home and render nothing
   React.useEffect(() => {
@@ -25,15 +29,11 @@ export default function AuthCallback() {
     }
   }, [isWeb, router]);
 
-  if (!isWeb) {
-    return null;
-  }
-  const { user, refresh } = useAuth();
-  const [error, setError] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(true);
-  const ranRef = useRef(false);
-
   useEffect(() => {
+    if (!isWeb) {
+      return;
+    }
+
     if (ranRef.current) return;
     ranRef.current = true;
 
@@ -106,9 +106,11 @@ export default function AuthCallback() {
     };
 
     run();
-    // We want to run this only once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isWeb, refresh, router, user]);
+
+  if (!isWeb) {
+    return null;
+  }
 
   if (processing) {
     return (
