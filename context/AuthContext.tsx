@@ -15,6 +15,7 @@ import {
   trackDocumentChange,
   trackProfileUpdate
 } from '@/utils/demoSessionTracker';
+import { setupDemoDefaultPreferences } from '@/utils/demoDefaultPrefs';
 
 export type AuthUser = Models.User<Models.Preferences> | null;
 
@@ -315,48 +316,99 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       // Set demo mode state if it's a demo login
       if (isDemoLogin) {
-        console.log('Demo mode login activated');
+        console.log('[AuthContext] Demo mode login activated');
         setIsDemoMode(true);
-        
-        // Initialize demo session tracking to ensure the collection exists
-        await initDemoSessionTracking().catch(err => {
-          console.error('Failed to initialize demo session tracking:', err);
-          // Continue with login even if tracking init fails
-        });
       } else {
         setIsDemoMode(false);
       }
       
-      // Create a session, then fetch the user
+      // Step 1: Create a session, then fetch the user
+      console.log('[AuthContext] Creating email/password session');
       await account.createEmailPasswordSession(email, password);
       await getCurrent();
       
-      // If demo login was successful, log the access
+      // If demo mode, handle the reset and setup AFTER successful login with better rate limit handling
       if (isDemoLogin) {
         try {
-          await databases.createDocument(
-            resolveDatabaseId(),
-            'test_user_access_logs',
-            ID.unique(),
-            {
-              userEmail: email,
-              action: 'login',
-              resource: 'app_login',
-              timestamp: new Date().toISOString(),
-              ip: 'client-side', 
-              userAgent: navigator.userAgent || 'React Native App'
-            }
-          );
+          // Using longer delays and better error handling to prevent rate limiting issues
           
-          // Show a notification to the user about demo mode behavior
+          // Step 2: Initialize demo session tracking to ensure the collection exists
+          console.log('[AuthContext] Initializing demo session tracking');
+          
+          // Initial delay before starting API operations
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          try {
+            await initDemoSessionTracking();
+          } catch (err) {
+            console.error('[AuthContext] Failed to initialize demo session tracking:', err);
+            // Continue anyway as this is not critical
+          }
+          
+          // Longer delay between critical API calls
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          
+          // Step 3: Log the access event (lower priority)
+          try {
+            console.log('[AuthContext] Logging demo user access');
+            await databases.createDocument(
+              resolveDatabaseId(),
+              'test_user_access_logs',
+              ID.unique(),
+              {
+                userEmail: email,
+                action: 'login',
+                resource: 'app_login',
+                timestamp: new Date().toISOString(),
+                ip: 'client-side', 
+                userAgent: navigator.userAgent || 'React Native App'
+              }
+            );
+          } catch (logErr) {
+            // Just log but continue if this fails - it's not critical
+            console.warn('[AuthContext] Could not log demo access (continuing anyway):', logErr);
+          }
+          
+          // Longer delay for resetting user session - this is more important
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          // Step 4: Reset any previous demo user changes to ensure a clean slate
+          // This is critical for proper demo functionality
+          console.log('[AuthContext] Resetting previous demo user session');
+          try {
+            await resetDemoUserSession();
+          } catch (resetErr) {
+            console.error('[AuthContext] Failed to reset demo user session on login:', resetErr);
+          }
+          
+          // Longest delay before setting up preferences - often where rate limits occur
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Step 5: Set up default preferences AFTER login and reset
+          console.log('[AuthContext] Setting up demo user default preferences');
+          try {
+            await setupDemoDefaultPreferences();
+          } catch (prefErr) {
+            console.error('[AuthContext] Failed to set up demo user default preferences:', prefErr);
+            // Continue even if setting defaults fails
+          }
+          
+          // Step 6: Show a notification to the user about demo mode behavior
           Alert.alert(
             'Demo Mode Active',
             'You are using VoxCampus in demo mode. All changes will be automatically reset when you log out.',
             [{ text: 'Got it' }]
           );
         } catch (logError) {
-          console.error('Failed to log demo user access:', logError);
-          // Don't block login if logging fails
+          console.error('[AuthContext] Failed during demo user setup:', logError);
+          // Don't block login if setup fails - user is already authenticated
+          
+          // Show a more specific alert if setup failed but login succeeded
+          Alert.alert(
+            'Demo Mode Active',
+            'You are using VoxCampus in demo mode. Some demo features might not be fully set up, but you can still explore the app.',
+            [{ text: 'Got it' }]
+          );
         }
       }
     } catch (error) {

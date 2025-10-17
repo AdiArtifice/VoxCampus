@@ -1,4 +1,4 @@
-import { databases, storage, ID } from '@/lib/appwrite';
+import { databases, storage, ID, account } from '@/lib/appwrite';
 import { APPWRITE } from '@/lib/config';
 
 /**
@@ -13,7 +13,7 @@ const DEMO_USER_EMAIL = 'test@sjcem.edu.in';
 const DEMO_SESSION_TRACKING_COLLECTION = 'demo_session_tracking';
 
 // Types
-type ChangeType = 'document' | 'file' | 'profile';
+type ChangeType = 'document' | 'file' | 'profile' | 'association' | 'connection' | 'follow' | 'membership' | 'preference';
 
 interface TrackedChange {
   id: string;
@@ -21,6 +21,7 @@ interface TrackedChange {
   collectionId?: string;
   databaseId?: string;
   bucketId?: string;
+  relationType?: string;
   timestamp: string;
 }
 
@@ -128,6 +129,82 @@ export async function trackProfileUpdate(userId: string): Promise<string> {
 }
 
 /**
+ * Track a preference change made by the demo user
+ * @param prefType The type of preference (e.g., 'followedAssociations', 'theme', etc.)
+ * @param dataType Additional context about the data being changed
+ * @returns The ID of the tracking record
+ */
+export async function trackPreferenceChange(
+  prefType: string,
+  dataType: string = 'user_preference'
+): Promise<string> {
+  try {
+    const databaseId = APPWRITE.DATABASE_ID;
+    
+    // Create a tracking record
+    const trackingRecord = await databases.createDocument(
+      databaseId,
+      DEMO_SESSION_TRACKING_COLLECTION,
+      ID.unique(),
+      {
+        changeType: 'preference',
+        prefType,
+        dataType,
+        userEmail: DEMO_USER_EMAIL,
+        timestamp: new Date().toISOString()
+      }
+    );
+    
+    console.log(`[DemoSessionTracker] Tracked preference change: ${prefType} (${dataType})`);
+    return trackingRecord.$id;
+  } catch (error) {
+    console.error('[DemoSessionTracker] Failed to track preference change:', error);
+    return '';
+  }
+}
+
+/**
+ * Track an association or connection made by the demo user
+ * @param databaseId The database ID where the association was created
+ * @param collectionId The collection ID where the association was created
+ * @param documentId The ID of the association document
+ * @param relationType The type of relation (e.g., 'follow', 'connect', 'membership')
+ * @returns The ID of the tracking record
+ */
+export async function trackRelation(
+  databaseId: string,
+  collectionId: string,
+  documentId: string,
+  relationType: string
+): Promise<string> {
+  try {
+    const databaseIdToUse = databaseId || APPWRITE.DATABASE_ID;
+    
+    // Create a tracking record
+    const trackingRecord = await databases.createDocument(
+      databaseIdToUse,
+      DEMO_SESSION_TRACKING_COLLECTION,
+      ID.unique(),
+      {
+        changeType: relationType || 'association',
+        databaseId: databaseIdToUse,
+        collectionId,
+        documentId,
+        relationType,
+        userEmail: DEMO_USER_EMAIL,
+        timestamp: new Date().toISOString()
+      }
+    );
+    
+    console.log(`[DemoSessionTracker] Tracked relation: ${relationType} - ${collectionId}/${documentId}`);
+    return trackingRecord.$id;
+  } catch (error) {
+    console.error(`[DemoSessionTracker] Failed to track relation (${relationType}):`, error);
+    return '';
+  }
+}
+
+/**
  * Reset all changes made by the demo user during the current session
  * @returns A promise that resolves when all changes have been reset
  */
@@ -137,7 +214,29 @@ export async function resetDemoUserSession(): Promise<void> {
     
     const databaseId = APPWRITE.DATABASE_ID;
     
-    // Fetch all tracked changes for this demo session
+    // Step 1: Reset user preferences (including followed associations)
+    // We'll do a minimal preferences reset to avoid rate limits
+    try {
+      console.log('[DemoSessionTracker] Resetting demo user preferences');
+      
+      // Only reset the most critical preferences to avoid rate limits
+      await account.updatePrefs({
+        // Reset followed associations to empty array - this is the most important
+        followedAssociations: [],
+        // Minimal other prefs to reduce API payload
+        theme: 'light',
+      });
+      
+      console.log('[DemoSessionTracker] Successfully reset demo user preferences');
+    } catch (prefError) {
+      console.error('[DemoSessionTracker] Failed to reset demo user preferences:', prefError);
+      // Continue with other reset operations even if this fails
+    }
+    
+    // Add a small delay after preference reset to avoid rate limits
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Step 2: Fetch all tracked changes for this demo session
     const trackedChanges = await databases.listDocuments(
       databaseId,
       DEMO_SESSION_TRACKING_COLLECTION,
@@ -157,33 +256,76 @@ export async function resetDemoUserSession(): Promise<void> {
     
     console.log(`[DemoSessionTracker] Found ${trackedChanges.documents.length} changes to reset`);
     
-    // Process each tracked change
-    const resetPromises = trackedChanges.documents.map(async (trackingDoc) => {
+    // Process tracked changes sequentially to avoid rate limits
+    console.log(`[DemoSessionTracker] Processing ${trackedChanges.documents.length} changes sequentially to avoid rate limits`);
+    
+    for (const trackingDoc of trackedChanges.documents) {
       try {
-        const { changeType, databaseId: targetDbId, collectionId, documentId, bucketId, fileId } = trackingDoc;
+        const { 
+          changeType, 
+          databaseId: targetDbId, 
+          collectionId, 
+          documentId, 
+          bucketId, 
+          fileId,
+          relationType,
+          prefType
+        } = trackingDoc;
         
-        if (changeType === 'document' && targetDbId && collectionId && documentId) {
-          // Delete the document
-          await databases.deleteDocument(targetDbId, collectionId, documentId);
-          console.log(`[DemoSessionTracker] Deleted document: ${collectionId}/${documentId}`);
-        } 
-        else if (changeType === 'file' && bucketId && fileId) {
-          // Delete the file
-          await storage.deleteFile(bucketId, fileId);
-          console.log(`[DemoSessionTracker] Deleted file: ${bucketId}/${fileId}`);
+        // Handle different types of changes
+        switch(changeType) {
+          case 'document':
+            if (targetDbId && collectionId && documentId) {
+              await databases.deleteDocument(targetDbId, collectionId, documentId)
+                .catch(e => console.log(`[DemoSessionTracker] Could not delete document - may already be deleted: ${e.message}`));
+              console.log(`[DemoSessionTracker] Deleted document: ${collectionId}/${documentId}`);
+              // Add delay to prevent rate limits
+              await new Promise(resolve => setTimeout(resolve, 300));
+            }
+            break;
+            
+          case 'file':
+            if (bucketId && fileId) {
+              await storage.deleteFile(bucketId, fileId)
+                .catch(e => console.log(`[DemoSessionTracker] Could not delete file - may already be deleted: ${e.message}`));
+              console.log(`[DemoSessionTracker] Deleted file: ${bucketId}/${fileId}`);
+              // Add delay to prevent rate limits
+              await new Promise(resolve => setTimeout(resolve, 300));
+            }
+            break;
+            
+          case 'association':
+          case 'connection':
+          case 'follow':
+          case 'membership':
+            if (targetDbId && collectionId && documentId) {
+              await databases.deleteDocument(targetDbId, collectionId, documentId)
+                .catch(e => console.log(`[DemoSessionTracker] Could not delete relation - may already be deleted: ${e.message}`));
+              console.log(`[DemoSessionTracker] Deleted relation: ${changeType}/${documentId}`);
+              // Add delay to prevent rate limits
+              await new Promise(resolve => setTimeout(resolve, 250));
+            }
+            break;
+            
+          case 'preference':
+            // Preferences are already reset in Step 1 (bulk reset)
+            console.log(`[DemoSessionTracker] Preference change already reset: ${prefType || 'unknown'}`);
+            break;
+            
+          default:
+            console.log(`[DemoSessionTracker] Unknown change type: ${changeType}`);
         }
-        // Profile updates are more complex and may require special handling
-        // For simplicity, we might need to restore from a backup or template
         
         // Delete the tracking record itself
-        await databases.deleteDocument(databaseId, DEMO_SESSION_TRACKING_COLLECTION, trackingDoc.$id);
+        await databases.deleteDocument(databaseId, DEMO_SESSION_TRACKING_COLLECTION, trackingDoc.$id)
+          .catch(e => console.log(`[DemoSessionTracker] Could not delete tracking record: ${e.message}`));
+        
+        // Small delay between operations
+        await new Promise(resolve => setTimeout(resolve, 100));
       } catch (error) {
         console.error(`[DemoSessionTracker] Failed to reset change ${trackingDoc.$id}:`, error);
       }
-    });
-    
-    // Wait for all reset operations to complete
-    await Promise.all(resetPromises);
+    }
     
     console.log('[DemoSessionTracker] Demo user session reset complete');
   } catch (error) {

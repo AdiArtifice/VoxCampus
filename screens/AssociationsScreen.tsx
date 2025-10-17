@@ -5,6 +5,7 @@ import ClubCard from '@/components/ClubCard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { client, databases, Query, account } from '@/lib/appwrite';
 import { useAuth } from '@/context/AuthContext';
+import { useDemoTracker } from '@/hooks/useDemoTracker';
 import { Button } from '@/components/Button';
 
 // Removed mock followed lists; using live data + user prefs instead
@@ -20,6 +21,7 @@ type AssociationDoc = {
 
 const AssociationsScreen = () => {
   const { user } = useAuth();
+  const { trackAssociation, trackPreference, isDemoMode } = useDemoTracker();
   const [associations, setAssociations] = useState<AssociationDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -169,8 +171,41 @@ const AssociationsScreen = () => {
     if (!user) { setFollowMsg('Please log in to follow associations.'); return; }
     setFollowSaving(true); setFollowMsg(null);
     try {
+      // Get previous associations to track what's changing
+      const prevPrefs = await account.getPrefs();
+      const previousAssociations = prevPrefs?.followedAssociations || [];
+      
+      // Update with new associations
       const ids = Array.from(draftFollowIds);
       await account.updatePrefs({ followedAssociations: ids });
+      
+      // Track change for demo user
+      if (isDemoMode) {
+        // Log the change in detail for debugging
+        console.log('[AssociationsScreen] Demo user following associations:', {
+          previous: previousAssociations,
+          current: ids
+        });
+        
+        // Track this preference change for the demo user
+        await trackPreference('followedAssociations', 'association_follows').catch(err => {
+          console.error('Failed to track demo user preference change:', err);
+        });
+        const databaseId = '68c58e83000a2666b4d9'; // Using actual database ID for proper tracking
+        const trackingId = `follow_preferences_${Date.now()}`;
+        
+        try {
+          await trackAssociation(
+            databaseId,
+            'demo_session_tracking', // Track directly in this collection
+            trackingId,
+            'follow_associations'
+          );
+        } catch (trackErr) {
+          console.error('Failed to track demo follow associations:', trackErr);
+        }
+      }
+      
       setFollowedIds(ids);
       setFollowModalVisible(false);
     } catch (e: any) {
@@ -178,17 +213,32 @@ const AssociationsScreen = () => {
     } finally {
       setFollowSaving(false);
     }
-  }, [user, draftFollowIds]);
+  }, [user, draftFollowIds, isDemoMode, trackAssociation]);
 
   const unfollow = useCallback(async (id: string) => {
     const next = followedIds.filter(x => x !== id);
     setFollowedIds(next);
     try {
-      if (user) await account.updatePrefs({ followedAssociations: next });
-    } catch {
-      // ignore silently
+      if (user) {
+        await account.updatePrefs({ followedAssociations: next });
+        
+        // Track the unfollow action for demo users
+        if (isDemoMode) {
+          console.log(`[AssociationsScreen] Demo user unfollowed association: ${id}`);
+          
+          // Track this preference change using the new tracking function
+          try {
+            await trackPreference('followedAssociations', 'association_unfollow');
+          } catch (trackErr: any) {
+            console.error('Failed to track demo unfollow:', trackErr);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update preferences:', error);
+      // Still ignoring in the UI to avoid disrupting the experience
     }
-  }, [followedIds, user]);
+  }, [followedIds, user, isDemoMode, trackAssociation]);
 
   return (
     <SafeAreaView style={styles.container}>

@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { client, account, databases, ID, Query } from '@/lib/appwrite';
 import { Functions } from 'react-native-appwrite';
+import { useDemoTracker } from '@/hooks/useDemoTracker';
 
 // No mock data; start empty until backend is wired
 
@@ -51,6 +52,7 @@ const ConnectScreen = () => {
   const [recLoading, setRecLoading] = useState<boolean>(false);
   const [recError, setRecError] = useState<string | null>(null);
   const { width } = useWindowDimensions();
+  const { trackAssociation, isDemoMode } = useDemoTracker();
 
   const functions = useMemo(() => new Functions(client), []);
   const fnIdEnv = useMemo(
@@ -178,7 +180,7 @@ const ConnectScreen = () => {
                     onPress={async () => {
                       try {
                         const me = await account.get();
-                        await databases.createDocument(databaseId, connectionsCol, ID.unique(), {
+                        const connectionDoc = await databases.createDocument(databaseId, connectionsCol, ID.unique(), {
                           fromUserId: me.$id,
                           fromName: me.name,
                           fromEmail: me.email,
@@ -188,6 +190,17 @@ const ConnectScreen = () => {
                           status: 'pending',
                           requestedAt: new Date().toISOString(),
                         });
+                        
+                        // Track the connection if demo user
+                        if (isDemoMode) {
+                          await trackAssociation(
+                            databaseId, 
+                            connectionsCol, 
+                            connectionDoc.$id, 
+                            'connection'
+                          ).catch(err => console.error('Failed to track demo connection:', err));
+                        }
+                        
                         // Optimistically update sent list
                         setSentRequests((prev) => [
                           {
