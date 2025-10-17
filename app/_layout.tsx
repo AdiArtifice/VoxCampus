@@ -10,14 +10,12 @@ import {
   useFonts as useInterFonts
 } from "@expo-google-fonts/inter";
 import Head from "expo-router/head";
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { AuthProvider, ProviderGuard } from "@/context/AuthContext";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator } from "react-native";
 import * as SplashScreen from 'expo-splash-screen';
-import { InstitutionFilter } from "@/utils/institutionFilter";
-import GuestSessionExpiryModal, { useGuestSession } from "@/components/GuestSessionExpiryModal";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -32,36 +30,16 @@ export default function RootLayout() {
     Inter_400Regular,
     Inter_300Light,
   });
-  
-  // State for institution initialization
-  const [institutionInitialized, setInstitutionInitialized] = useState(false);
 
-  // Determine if all resources are loaded
+  // Determine if all fonts are loaded
   const fontsLoaded = poppinsLoaded && interLoaded;
 
-  // Initialize the default institution
+  // After fonts are loaded, hide the splash screen
   useEffect(() => {
-    const initializeInstitution = async () => {
-      try {
-        // Ensure the default institution exists for guest access
-        await InstitutionFilter.ensureDefaultInstitutionExists();
-        setInstitutionInitialized(true);
-      } catch (error) {
-        console.error('Failed to initialize default institution:', error);
-        // Continue anyway to avoid blocking the app
-        setInstitutionInitialized(true);
-      }
-    };
-    
-    initializeInstitution();
-  }, []);
-
-  // After resources are loaded, hide the splash screen
-  useEffect(() => {
-    if (fontsLoaded && institutionInitialized) {
+    if (fontsLoaded) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, institutionInitialized]);
+  }, [fontsLoaded]);
 
   // Show loading screen while fonts are loading
   if (!fontsLoaded) {
@@ -83,36 +61,10 @@ export default function RootLayout() {
         )}
         <AuthProvider>
           <ProviderGuard>
-            <AppWithGuestSession />
+            <Slot />
           </ProviderGuard>
         </AuthProvider>
       </View>
     </SafeAreaProvider>
-  );
-}
-
-// Wrapper component to handle guest sessions
-function AppWithGuestSession() {
-  // Use the guest session hook to handle session expiry
-  const { 
-    isGuestSession,
-    showModal, 
-    handleLogin, 
-    handleRegister 
-  } = useGuestSession();
-  
-  return (
-    <>
-      <Slot />
-      
-      {/* Show the guest session modal when needed */}
-      {isGuestSession && (
-        <GuestSessionExpiryModal
-          isVisible={showModal}
-          onLogin={handleLogin}
-          onRegister={handleRegister}
-        />
-      )}
-    </>
   );
 }
