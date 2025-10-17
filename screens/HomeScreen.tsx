@@ -4,6 +4,12 @@ import { COLORS, SIZES } from '@/constants/theme';
 import PostCard from '@/components/PostCard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { databases, Query } from '@/lib/appwrite';
+import { useAuth } from '@/hooks/useAuth';
+import { useGuestSession } from '@/hooks/useGuestSession';
+import GuestSessionTimer from '@/components/GuestSessionTimer';
+import { withInstitutionFiltering } from '@/hocs/withInstitutionFiltering';
+import { institutionFilter } from '@/utils/institutionFilter';
+import { withGuestVerification } from '@/utils/apiAccessControl';
 
 type Assoc = { $id: string; name: string; images?: string | null };
 type EventDoc = {
@@ -21,13 +27,27 @@ type EventDoc = {
   infoUrl?: string | null;
 };
 
-const HomeScreen = () => {
+interface HomeScreenProps {
+  institutionId?: string;
+}
+
+const HomeScreenComponent = ({ institutionId }: HomeScreenProps) => {
   const databaseId = (process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID as string) || '68c58e83000a2666b4d9';
   const eventsCol = 'events_and_sessions';
   const assocCol = 'association';
 
+  const { user } = useAuth();
+  const { isGuestSession, guestSessionActive, startNewGuestSession } = useGuestSession();
+  
   const [events, setEvents] = useState<EventDoc[]>([]);
   const [assocs, setAssocs] = useState<Record<string, Assoc>>({});
+
+  // Start guest session if user is not logged in and no active session
+  useEffect(() => {
+    if (!user && !guestSessionActive) {
+      startNewGuestSession();
+    }
+  }, [user, guestSessionActive]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,14 +81,22 @@ const HomeScreen = () => {
 
   useEffect(() => {
     let cancelled = false;
-    async function load() {
+    
+    // Skip loading if institutionId is not available
+    if (!institutionId) return;
+
+    const fetchData = withGuestVerification(async () => {
       setLoading(true);
       setError(null);
       try {
+        // Include institution filter in the query
         const res = await databases.listDocuments(databaseId, eventsCol, [
           Query.orderDesc('startAt'),
-          Query.limit(50)
+          Query.limit(50),
+          // Filter by institution ID
+          institutionFilter(institutionId)
         ]);
+        
         const docs = (res.documents || []) as unknown as EventDoc[];
         if (cancelled) return;
         setEvents(docs);
@@ -76,10 +104,14 @@ const HomeScreen = () => {
         // Collect organizerIds and fetch matching associations
         const ids = Array.from(new Set(docs.map(d => d.organizerId).filter(Boolean))) as string[];
         if (ids.length) {
+          // Also filter associations by institution
           const assocRes = await databases.listDocuments(databaseId, assocCol, [
             Query.equal('$id', ids),
-            Query.limit(ids.length)
+            Query.limit(ids.length),
+            // Filter by institution ID
+            institutionFilter(institutionId)
           ]);
+          
           const map: Record<string, Assoc> = {};
           (assocRes.documents as any[]).forEach((a: any) => {
             map[a.$id] = { $id: a.$id, name: a.name, images: a.images };
@@ -89,14 +121,22 @@ const HomeScreen = () => {
           if (!cancelled) setAssocs({});
         }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? 'Failed to load feed');
+        if (!cancelled) {
+          // Handle guest session expired error specifically
+          if (e?.message?.includes('Guest session expired')) {
+            setError('Guest session expired. Please log in to continue.');
+          } else {
+            setError(e?.message ?? 'Failed to load feed');
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
-    }
-    load();
+    });
+    
+    fetchData();
     return () => { cancelled = true; };
-  }, []);
+  }, [institutionId]);
 
   const feedItems = useMemo(() => {
     return events.map((ev) => {
@@ -125,6 +165,9 @@ const HomeScreen = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['right', 'left']}>
+      {/* Add Guest Session Timer for non-logged in users */}
+      {!user && <GuestSessionTimer />}
+      
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -172,5 +215,8 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   }
 });
+
+// Wrap component with institution filtering HOC
+const HomeScreen = withInstitutionFiltering(HomeScreenComponent);
 
 export default HomeScreen;
