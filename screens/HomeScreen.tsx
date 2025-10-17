@@ -10,6 +10,7 @@ import GuestSessionTimer from '@/components/GuestSessionTimer';
 import { withInstitutionFiltering } from '@/hocs/withInstitutionFiltering';
 import { institutionFilter } from '@/utils/institutionFilter';
 import { withGuestVerification } from '@/utils/apiAccessControl';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Assoc = { $id: string; name: string; images?: string | null };
 type EventDoc = {
@@ -41,10 +42,37 @@ const HomeScreenComponent = ({ institutionId }: HomeScreenProps) => {
   
   const [events, setEvents] = useState<EventDoc[]>([]);
   const [assocs, setAssocs] = useState<Record<string, Assoc>>({});
+  const [isNewUser, setIsNewUser] = useState<boolean>(false);
 
+  // Check if this is a new user and start a guest session if needed
+  useEffect(() => {
+    const checkFirstTimeUser = async () => {
+      try {
+        console.log(`[DEBUG] HomeScreen - Checking if first time user`);
+        const firstLaunchValue = await AsyncStorage.getItem('voxcampus_first_launch');
+        const isFirstTime = firstLaunchValue === null;
+        console.log(`[DEBUG] HomeScreen - First time user: ${isFirstTime}`);
+        setIsNewUser(isFirstTime);
+        
+        // For new users, ensure we start the guest session
+        if (isFirstTime) {
+          console.log(`[DEBUG] HomeScreen - First time user, starting guest session`);
+          await AsyncStorage.setItem('voxcampus_first_launch', 'false');
+          startNewGuestSession();
+        }
+      } catch (error) {
+        console.error(`[DEBUG] HomeScreen - Error checking first launch:`, error);
+      }
+    };
+    
+    checkFirstTimeUser();
+  }, []);
+  
   // Start guest session if user is not logged in and no active session
   useEffect(() => {
+    console.log(`[DEBUG] HomeScreen - Checking guest session. User: ${!!user}, Active: ${guestSessionActive}`);
     if (!user && !guestSessionActive) {
+      console.log(`[DEBUG] HomeScreen - Starting new guest session`);
       startNewGuestSession();
     }
   }, [user, guestSessionActive]);
@@ -83,12 +111,18 @@ const HomeScreenComponent = ({ institutionId }: HomeScreenProps) => {
     let cancelled = false;
     
     // Skip loading if institutionId is not available
-    if (!institutionId) return;
+    if (!institutionId) {
+      console.log(`[DEBUG] HomeScreen - No institutionId available, skipping data fetch`);
+      return;
+    }
+
+    console.log(`[DEBUG] HomeScreen - Fetching data with institutionId: ${institutionId}`);
 
     const fetchData = withGuestVerification(async () => {
       setLoading(true);
       setError(null);
       try {
+        console.log(`[DEBUG] HomeScreen - Fetching events with institution filter: ${institutionId}`);
         // Include institution filter in the query
         const res = await databases.listDocuments(databaseId, eventsCol, [
           Query.orderDesc('startAt'),
@@ -166,7 +200,17 @@ const HomeScreenComponent = ({ institutionId }: HomeScreenProps) => {
   return (
     <SafeAreaView style={styles.container} edges={['right', 'left']}>
       {/* Add Guest Session Timer for non-logged in users */}
-      {!user && <GuestSessionTimer />}
+      {!user && (
+        <>
+          <GuestSessionTimer />
+          {isNewUser && (
+            <View style={styles.welcomeBanner}>
+              <Text style={styles.welcomeText}>Welcome to VoxCampus!</Text>
+              <Text style={styles.welcomeSubtext}>You have 5 minutes to explore as a guest</Text>
+            </View>
+          )}
+        </>
+      )}
       
       <ScrollView 
         style={styles.scrollView}
@@ -213,6 +257,25 @@ const styles = StyleSheet.create({
   centerWrap: {
     padding: SIZES.lg,
     alignItems: 'center'
+  },
+  welcomeBanner: {
+    backgroundColor: COLORS.primary + '15', // light version of primary color
+    padding: SIZES.md,
+    margin: SIZES.sm,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    marginBottom: 4
+  },
+  welcomeSubtext: {
+    fontSize: 14,
+    color: COLORS.primary + 'DD',
+    textAlign: 'center'
   }
 });
 

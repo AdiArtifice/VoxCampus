@@ -21,8 +21,16 @@ export async function startGuestSession(): Promise<number> {
     expiryTime: expiryTime
   };
   
-  await AsyncStorage.setItem(GUEST_SESSION_KEY, JSON.stringify(session));
-  return expiryTime;
+  console.log(`[DEBUG] Starting new guest session. Expiry at: ${new Date(expiryTime).toLocaleTimeString()}`);
+  
+  try {
+    await AsyncStorage.setItem(GUEST_SESSION_KEY, JSON.stringify(session));
+    console.log(`[DEBUG] Guest session saved successfully`);
+    return expiryTime;
+  } catch (error) {
+    console.error(`[DEBUG] Failed to save guest session: ${error}`);
+    throw error;
+  }
 }
 
 /**
@@ -38,6 +46,7 @@ export async function checkGuestSession(): Promise<{
     const sessionData = await AsyncStorage.getItem(GUEST_SESSION_KEY);
     
     if (!sessionData) {
+      console.log(`[DEBUG] No guest session found in storage`);
       return { isValid: false, remainingTime: 0 };
     }
     
@@ -45,6 +54,8 @@ export async function checkGuestSession(): Promise<{
     const now = Date.now();
     const remainingTime = Math.max(0, session.expiryTime - now);
     const isValid = remainingTime > 0;
+    
+    console.log(`[DEBUG] Guest session check: Valid=${isValid}, Remaining=${Math.round(remainingTime/1000)}s, Expiry=${new Date(session.expiryTime).toLocaleTimeString()}`);
     
     return {
       isValid,
@@ -61,7 +72,14 @@ export async function checkGuestSession(): Promise<{
  * Ends the current guest session
  */
 export async function endGuestSession(): Promise<void> {
-  await AsyncStorage.removeItem(GUEST_SESSION_KEY);
+  console.log(`[DEBUG] Ending guest session`);
+  try {
+    await AsyncStorage.removeItem(GUEST_SESSION_KEY);
+    console.log(`[DEBUG] Guest session removed successfully`);
+  } catch (error) {
+    console.error(`[DEBUG] Failed to remove guest session: ${error}`);
+    throw error;
+  }
 }
 
 /**

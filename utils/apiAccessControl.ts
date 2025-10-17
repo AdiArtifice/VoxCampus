@@ -1,4 +1,5 @@
 import { checkGuestSession } from './guestSession';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * Utility to verify if the current guest session is valid before making API calls
@@ -6,13 +7,32 @@ import { checkGuestSession } from './guestSession';
  * @throws Error if guest session has expired
  */
 export async function verifyGuestAccess(): Promise<boolean> {
+  console.log('[DEBUG] apiAccessControl - Verifying guest access');
+  
   // Check if the guest session is still valid
-  const { isValid } = await checkGuestSession();
+  const { isValid, remainingTime } = await checkGuestSession();
+  console.log(`[DEBUG] apiAccessControl - Guest session valid: ${isValid}, Remaining: ${Math.round(remainingTime/1000)}s`);
+  
+  // Allow access for first-time users even without an explicit session
+  try {
+    // Check if this might be a first-time user (no session yet but should be allowed access)
+    const firstLaunchValue = await AsyncStorage.getItem('voxcampus_first_launch');
+    const isFirstTime = firstLaunchValue === null;
+    
+    if (isFirstTime) {
+      console.log('[DEBUG] apiAccessControl - First time user, allowing access');
+      return true;
+    }
+  } catch (error) {
+    console.error('[DEBUG] apiAccessControl - Error checking first launch:', error);
+  }
   
   if (!isValid) {
+    console.log('[DEBUG] apiAccessControl - Guest access denied');
     throw new Error('Guest session expired. Please log in to continue.');
   }
   
+  console.log('[DEBUG] apiAccessControl - Guest access granted');
   return true;
 }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { checkGuestSession, formatRemainingTime } from '../utils/guestSession';
@@ -13,63 +13,96 @@ const GuestSessionTimer: React.FC = () => {
   const [remainingTime, setRemainingTime] = useState<number>(0);
   const [showExpiryModal, setShowExpiryModal] = useState<boolean>(false);
   const [timerVisible, setTimerVisible] = useState<boolean>(false);
+  const [sessionChecked, setSessionChecked] = useState<boolean>(false);
 
-  useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const checkSession = async () => {
-      // Only check if user is not logged in
-      if (!user) {
+  // Separated check session function for better debugging
+  const checkSession = useCallback(async () => {
+    // Only check if user is not logged in
+    if (!user) {
+      console.log('[DEBUG] GuestSessionTimer - Checking session for non-logged-in user');
+      try {
         const { isValid, remainingTime } = await checkGuestSession();
+        console.log(`[DEBUG] GuestSessionTimer - Session valid: ${isValid}, Remaining: ${Math.round(remainingTime/1000)}s`);
+        
         setRemainingTime(remainingTime);
         setTimerVisible(isValid); // Only show timer if session is valid
         
         // Show expiry modal when time is up
         if (!isValid && remainingTime <= 0) {
+          console.log('[DEBUG] GuestSessionTimer - Session expired, showing modal');
           setShowExpiryModal(true);
         }
-      } else {
-        setTimerVisible(false);
+      } catch (error) {
+        console.error('[DEBUG] GuestSessionTimer - Error checking session:', error);
+      } finally {
+        setSessionChecked(true);
       }
-    };
+    } else {
+      console.log('[DEBUG] GuestSessionTimer - User is logged in, hiding timer');
+      setTimerVisible(false);
+      setSessionChecked(true);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    console.log('[DEBUG] GuestSessionTimer - Component mounted');
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
     // Initial check
     checkSession();
 
     // Set up interval for regular checks
     if (!user) {
+      console.log('[DEBUG] GuestSessionTimer - Setting up interval for session checks');
       intervalId = setInterval(checkSession, UPDATE_INTERVAL);
     }
 
     return () => {
+      console.log('[DEBUG] GuestSessionTimer - Component unmounted');
       if (intervalId) {
         clearInterval(intervalId);
       }
     };
-  }, [user]);
+  }, [user, checkSession]);
 
   const handleLogin = () => {
+    console.log('[DEBUG] GuestSessionTimer - Login button pressed');
     setShowExpiryModal(false);
     // Navigate to login screen
     navigation.navigate('Login' as never);
   };
-
-  if (!timerVisible) {
+  
+  // If session has not been checked yet, show nothing
+  if (!sessionChecked) {
+    console.log('[DEBUG] GuestSessionTimer - Session not checked yet, not rendering');
     return null;
   }
 
+  // If timer should not be visible, return null but still render the modal if needed
+  if (!timerVisible && !showExpiryModal) {
+    console.log('[DEBUG] GuestSessionTimer - Timer not visible, not rendering');
+    return null;
+  }
+
+  console.log(`[DEBUG] GuestSessionTimer - Rendering with remaining time: ${formatRemainingTime(remainingTime)}, modal visible: ${showExpiryModal}`);
+  
   return (
     <>
-      <View style={styles.timerContainer}>
-        <Text style={styles.timerLabel}>Guest Session:</Text>
-        <Text style={styles.timerValue}>{formatRemainingTime(remainingTime)}</Text>
-      </View>
+      {timerVisible && (
+        <View style={styles.timerContainer}>
+          <Text style={styles.timerLabel}>Guest Session:</Text>
+          <Text style={styles.timerValue}>{formatRemainingTime(remainingTime)}</Text>
+        </View>
+      )}
 
       <Modal
         visible={showExpiryModal}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowExpiryModal(false)}
+        onRequestClose={() => {
+          console.log('[DEBUG] GuestSessionTimer - Modal closed by request');
+          setShowExpiryModal(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>

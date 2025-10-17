@@ -26,22 +26,30 @@ export function withInstitutionFiltering<P extends { institutionId?: string }>(
       const determineInstitution = async () => {
         setLoading(true);
         try {
+          console.log(`[DEBUG] withInstitutionFiltering - Determining institution. User: ${user?.email || 'none'}, Guest: ${isGuestSession}`);
           let id: string | null = null;
 
           if (user) {
             // For logged-in users, determine institution from email
             id = await getInstitutionIdFromEmail(user.email);
+            console.log(`[DEBUG] withInstitutionFiltering - User institution: ${id}`);
           } else if (isGuestSession) {
             // For guest users, use the default institution
             id = guestInstitutionId;
+            console.log(`[DEBUG] withInstitutionFiltering - Guest institution: ${id}`);
           } else {
             // Neither logged in nor guest - shouldn't happen, but handle gracefully
-            console.warn('User is neither logged in nor in guest session');
+            console.warn('[DEBUG] withInstitutionFiltering - User is neither logged in nor in guest session');
+            // Default to the default institution for safety
+            id = 'default_institution';
+            console.log(`[DEBUG] withInstitutionFiltering - Falling back to default: ${id}`);
           }
 
           setInstitutionId(id);
         } catch (error) {
-          console.error('Error determining institution:', error);
+          console.error('[DEBUG] withInstitutionFiltering - Error determining institution:', error);
+          // Set default institution as a fallback
+          setInstitutionId('default_institution');
         } finally {
           setLoading(false);
         }

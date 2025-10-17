@@ -87,7 +87,38 @@ export async function getInstitutionIdFromEmail(email: string): Promise<string> 
  * @returns Appwrite Query filter for the specified institution
  */
 export function institutionFilter(institutionId: string = DEFAULT_INSTITUTION_ID): string {
+  console.log(`[DEBUG] Creating institution filter for ID: ${institutionId}`);
   return Query.equal('institutionId', institutionId);
+}
+
+/**
+ * Wraps a database query function with institution filtering
+ * @param queryFn Function that performs database queries
+ * @param institutionId Institution ID to filter by (optional)
+ * @returns Function that applies institution filtering to queries
+ */
+export function withInstitutionFilter<T extends any[], R>(
+  queryFn: (...args: T) => Promise<R>,
+  institutionId?: string
+): (...args: T) => Promise<R> {
+  return async (...args: T) => {
+    // Determine which institution to use
+    const idToUse = institutionId || DEFAULT_INSTITUTION_ID;
+    console.log(`[DEBUG] withInstitutionFilter using ID: ${idToUse}`);
+    
+    // If any of the args is an array and likely to be queries, add the institution filter
+    const newArgs = args.map((arg) => {
+      if (Array.isArray(arg) && arg.some(item => typeof item === 'string' && item.includes('equal('))) {
+        // This is likely the queries array, add our filter
+        console.log(`[DEBUG] Adding institution filter to query array`);
+        return [...arg, institutionFilter(idToUse)];
+      }
+      return arg;
+    });
+    
+    // Call the original function with modified arguments
+    return queryFn(...newArgs as T);
+  };
 }
 
 /**
