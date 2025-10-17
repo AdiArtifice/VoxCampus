@@ -12,6 +12,8 @@ VoxCampus aims to revolutionize campus communication by providing a centralized 
 - **Academic Resources** - Share and access study materials
 - **Campus Announcements** - Real-time updates from administration
 - **Community Building** - Foster stronger campus relationships
+- **Multi-College Support** - Separate spaces for different institutions
+- **Demo Mode** - Try the app with temporary changes that reset on logout
 
 ## 🛠️ Tech Stack
 

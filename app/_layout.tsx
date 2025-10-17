@@ -16,6 +16,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator } from "react-native";
 import * as SplashScreen from 'expo-splash-screen';
+import TestUserBanner from "@/components/TestUserBanner";
+import MainLayout from "@/components/MainLayout";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -61,7 +63,9 @@ export default function RootLayout() {
         )}
         <AuthProvider>
           <ProviderGuard>
-            <Slot />
+            <MainLayout>
+              <Slot />
+            </MainLayout>
           </ProviderGuard>
         </AuthProvider>
       </View>

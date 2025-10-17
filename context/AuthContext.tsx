@@ -7,6 +7,14 @@ import * as Linking from 'expo-linking';
 import { isSJCEMEmail } from '@/utils/validation';
 import { signInWithGoogle as doGoogleSignIn, parseOAuthCallbackUrl } from '@/features/auth/google';
 import { Alert, View, Text, Platform } from 'react-native';
+import { 
+  resetDemoUserSession, 
+  isDemoUser,
+  initDemoSessionTracking,
+  trackFileUpload,
+  trackDocumentChange,
+  trackProfileUpdate
+} from '@/utils/demoSessionTracker';
 
 export type AuthUser = Models.User<Models.Preferences> | null;
 
@@ -82,7 +90,8 @@ type AuthContextType = {
   userMemberships: Membership[];
   initializing: boolean;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  isDemoMode: boolean;
+  login: (email: string, password: string, isDemoLogin?: boolean) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -126,6 +135,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [initializing, setInitializing] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(false);
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
   const resolveDatabaseId = useCallback(() => APPWRITE.DATABASE_ID || '68c58e83000a2666b4d9', []);
 
   // Mount/unmount diagnostics
@@ -301,11 +311,62 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     })();
   }, [getCurrent]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    // Create a session, then fetch the user
-    await account.createEmailPasswordSession(email, password);
-    await getCurrent();
-  }, [getCurrent]);
+  const login = useCallback(async (email: string, password: string, isDemoLogin = false) => {
+    try {
+      // Set demo mode state if it's a demo login
+      if (isDemoLogin) {
+        console.log('Demo mode login activated');
+        setIsDemoMode(true);
+        
+        // Initialize demo session tracking to ensure the collection exists
+        await initDemoSessionTracking().catch(err => {
+          console.error('Failed to initialize demo session tracking:', err);
+          // Continue with login even if tracking init fails
+        });
+      } else {
+        setIsDemoMode(false);
+      }
+      
+      // Create a session, then fetch the user
+      await account.createEmailPasswordSession(email, password);
+      await getCurrent();
+      
+      // If demo login was successful, log the access
+      if (isDemoLogin) {
+        try {
+          await databases.createDocument(
+            resolveDatabaseId(),
+            'test_user_access_logs',
+            ID.unique(),
+            {
+              userEmail: email,
+              action: 'login',
+              resource: 'app_login',
+              timestamp: new Date().toISOString(),
+              ip: 'client-side', 
+              userAgent: navigator.userAgent || 'React Native App'
+            }
+          );
+          
+          // Show a notification to the user about demo mode behavior
+          Alert.alert(
+            'Demo Mode Active',
+            'You are using VoxCampus in demo mode. All changes will be automatically reset when you log out.',
+            [{ text: 'Got it' }]
+          );
+        } catch (logError) {
+          console.error('Failed to log demo user access:', logError);
+          // Don't block login if logging fails
+        }
+      }
+    } catch (error) {
+      // Reset demo mode if login failed
+      if (isDemoLogin) {
+        setIsDemoMode(false);
+      }
+      throw error;
+    }
+  }, [getCurrent, resolveDatabaseId]);
 
   const sendVerificationEmail = useCallback(async (redirectUrl?: string) => {
     // Build a deep link redirect URL to our verify-email screen
@@ -340,14 +401,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = useCallback(async () => {
     try {
+      // Handle demo user logout if applicable
+      if (isDemoMode && user?.email) {
+        try {
+          // First, log the logout event
+          await databases.createDocument(
+            resolveDatabaseId(),
+            'test_user_access_logs',
+            ID.unique(),
+            {
+              userEmail: user.email,
+              action: 'logout',
+              resource: 'app_logout',
+              timestamp: new Date().toISOString(),
+              ip: 'client-side', 
+              userAgent: navigator.userAgent || 'React Native App'
+            }
+          );
+          
+          // Then reset the demo user session - this will delete all tracked changes
+          console.log('[AuthContext] Resetting demo user session before logout');
+          await resetDemoUserSession();
+          
+        } catch (error) {
+          console.error('Failed during demo user logout process:', error);
+          // Continue with logout even if reset fails
+        }
+      }
+      
       // Delete only current session for safety
       await account.deleteSession('current');
     } finally {
       setUser(null);
       setUserMemberships([]);
       setUserRoles([]);
+      setIsDemoMode(false);
     }
-  }, []);
+  }, [isDemoMode, user, resolveDatabaseId]);
 
   const refresh = useCallback(async () => {
     await getCurrent();
@@ -410,6 +500,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       };
 
       await account.updatePrefs(mergedPrefs);
+
+      // Track profile update for demo user
+      if (isDemoMode && user?.email) {
+        await trackProfileUpdate(user.$id).catch(err => {
+          console.error('Failed to track demo user profile preference update:', err);
+        });
+      }
 
       setUser(prev => {
         if (!prev) return prev;
@@ -475,6 +572,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Step 1: Upload to Appwrite Storage
       const file = await storage.createFile(bucketId, ID.unique(), filePayload);
       console.debug('[AuthProvider] Avatar file created', { fileId: file.$id, bucketId });
+      
+      // Track the file upload if demo user
+      if (isDemoMode && user?.email) {
+        try {
+          await trackFileUpload(bucketId, file.$id);
+        } catch (error) {
+          console.error('Failed to track demo user file upload:', error);
+        }
+      }
 
       // Step 2: Generate public URL
       const publicUrl = storage.getFileView(bucketId, file.$id).toString();
@@ -497,12 +603,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Try to update existing document first
         await databases.updateDocument(databaseId, collectionId, deterministicId, profilePayload);
         console.debug('[AuthProvider] Updated existing public_users document');
+        
+        // Track the profile update for demo user
+        if (isDemoMode && user?.email) {
+          await trackProfileUpdate(user.$id).catch(err => {
+            console.error('Failed to track demo user profile update:', err);
+          });
+        }
       } catch (updateErr) {
         console.debug('[AuthProvider] Update failed, creating new document', updateErr);
         try {
           // If update fails, create new document
           await databases.createDocument(databaseId, collectionId, deterministicId, profilePayload);
           console.debug('[AuthProvider] Created new public_users document');
+          
+          // Track the new document for demo user
+          if (isDemoMode && user?.email) {
+            await trackDocumentChange(databaseId, collectionId, deterministicId).catch(err => {
+              console.error('Failed to track demo user document creation:', err);
+            });
+          }
         } catch (createErr) {
           console.error('[AuthProvider] Failed to create profile document:', createErr);
           throw new Error(`Failed to update user profile: ${createErr instanceof Error ? createErr.message : 'Unknown error'}`);
@@ -627,6 +747,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     userMemberships, 
     initializing, 
     loading, 
+    isDemoMode,
     login, 
     register, 
     logout, 

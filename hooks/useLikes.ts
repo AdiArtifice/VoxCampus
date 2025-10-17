@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { databases, Query, ID } from '@/lib/appwrite';
 import { useAuth } from '@/hooks/useAuth';
+import { useDemoTracker } from '@/hooks/useDemoTracker';
 
 const DATABASE_ID = (process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID as string) || '68c58e83000a2666b4d9';
 const LIKES_COLLECTION = 'likes';
@@ -11,6 +12,7 @@ const LIKES_COLLECTION = 'likes';
  */
 export const useLikes = (postId: string) => {
   const { user } = useAuth();
+  const { trackDocument, isDemoMode } = useDemoTracker();
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -76,11 +78,17 @@ export const useLikes = (postId: string) => {
         }
       } else {
         // Add like: Create new like document
-        await databases.createDocument(DATABASE_ID, LIKES_COLLECTION, ID.unique(), {
+        const newDocumentId = ID.unique();
+        await databases.createDocument(DATABASE_ID, LIKES_COLLECTION, newDocumentId, {
           postId,
           userId: user.$id,
           createdAt: new Date().toISOString()
         });
+        
+        // Track document creation if in demo mode
+        if (isDemoMode) {
+          await trackDocument(DATABASE_ID, LIKES_COLLECTION, newDocumentId);
+        }
       }
 
       // Refresh counts from server to ensure accuracy

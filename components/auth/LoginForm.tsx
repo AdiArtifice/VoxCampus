@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, TextInput, Text, StyleSheet } from 'react-native';
+import { View, TextInput, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
 import { Button } from '@/components/Button';
 import { isValidEmail, isValidPassword } from '@/utils/validation';
 import { useAuth } from '@/hooks/useAuth';
 import { SocialAuthButtons } from '@/components/auth/SocialAuthButtons';
+import { COLORS } from '@/constants/theme';
 
 type Props = {
   onSuccess?: () => void;
@@ -16,18 +17,33 @@ export const LoginForm: React.FC<Props> = ({ onSuccess, onSwitchToRegister }) =>
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Demo mode toggle state
+  const [demoMode, setDemoMode] = useState(false);
 
-  const canSubmit = isValidEmail(email) && isValidPassword(password);
+  // If demo mode is enabled, we bypass validation
+  const canSubmit = demoMode || (isValidEmail(email) && isValidPassword(password));
 
   const handleSubmit = async () => {
     setError(null);
-    if (!canSubmit) {
-      setError('Please enter a valid email and a password with at least 8 characters.');
-      return;
-    }
+    
     try {
       setSubmitting(true);
-      await login(email, password);
+      
+      if (demoMode) {
+        // Use demo user credentials
+        console.log('Logging in with demo account');
+        await login('test@sjcem.edu.in', 'DemoUser2025!@#', true);
+      } else {
+        // Regular login validation
+        if (!canSubmit) {
+          setError('Please enter a valid email and a password with at least 8 characters.');
+          setSubmitting(false);
+          return;
+        }
+        
+        await login(email, password);
+      }
+      
       onSuccess?.();
     } catch (e: any) {
       const msg = e?.message || 'Login failed. Please check your credentials.';
@@ -55,9 +71,34 @@ export const LoginForm: React.FC<Props> = ({ onSuccess, onSwitchToRegister }) =>
         style={styles.input}
         value={password}
         onChangeText={setPassword}
+        editable={!demoMode}
       />
-      <View style={{ marginTop: 12, opacity: submitting || !canSubmit ? 0.8 : 1 }}>
-        <Button text={submitting ? 'Signing in...' : 'Sign In'} onPress={handleSubmit} />
+      
+      {/* Demo Mode Toggle */}
+      <TouchableOpacity 
+        style={styles.demoModeContainer} 
+        onPress={() => setDemoMode(!demoMode)}
+        activeOpacity={0.7}
+      >
+        <Switch
+          value={demoMode}
+          onValueChange={setDemoMode}
+          trackColor={{ false: '#767577', true: COLORS.primary }}
+          thumbColor={demoMode ? '#f4f3f4' : '#f4f3f4'}
+        />
+        <Text style={styles.demoModeText}>
+          Demo Mode {demoMode ? '(Enabled)' : ''}
+        </Text>
+      </TouchableOpacity>
+      
+      {demoMode && (
+        <Text style={styles.demoModeInfo}>
+          Access the app in demo mode to explore without account restrictions.
+        </Text>
+      )}
+      
+      <View style={{ marginTop: 12, opacity: submitting ? 0.8 : 1 }}>
+        <Button text={submitting ? 'Signing in...' : demoMode ? 'Enter Demo Mode' : 'Sign In'} onPress={handleSubmit} />
       </View>
       <SocialAuthButtons
         variant="signin"
@@ -102,5 +143,23 @@ const styles = StyleSheet.create({
   switchText: {
     color: '#1F6FEB',
     marginTop: 12,
+  },
+  demoModeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 8,
+    paddingVertical: 4,
+  },
+  demoModeText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.primary,
+  },
+  demoModeInfo: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+    marginBottom: 8,
   },
 });
