@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { account, ID, databases, Query, storage } from '@/lib/appwrite';
+import { account, ID, databases, Query, storage, functions } from '@/lib/appwrite';
 import * as FileSystem from 'expo-file-system';
 import { APPWRITE } from '@/lib/config';
 import type { Models } from 'react-native-appwrite';
@@ -471,13 +471,57 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
           );
           
-          // Then reset the demo user session - this will delete all tracked changes
           console.log('[AuthContext] Resetting demo user session before logout');
-          await resetDemoUserSession();
+          
+          // Approach 1: First try the server-side function for preference reset
+          // This uses the current user session (JWT) which has permission to update preferences
+          try {
+            console.log('[AuthContext] Calling reset-demo-preferences function');
+            
+            // Execute the reset-demo-preferences function with current JWT
+            await functions.createExecution(
+              'reset-demo-preferences',
+              JSON.stringify({}), 
+              false // synchronous execution
+            );
+            
+            console.log('[AuthContext] Successfully reset demo user preferences via function');
+          } catch (prefError) {
+            console.warn('[AuthContext] Server function for preferences failed, falling back to client reset:', prefError);
+            // Fall back to the client-side reset if server function fails
+            await resetDemoUserSession();
+          }
+          
+          // Approach 2: Trigger server-side cleanup for other content
+          try {
+            console.log('[AuthContext] Triggering server-side demo cleanup');
+            
+            // Execute the trigger-demo-cleanup function
+            await functions.createExecution(
+              'trigger-demo-cleanup',
+              JSON.stringify({
+                userId: user.$id,
+                email: user.email
+              }),
+              false // synchronous execution
+            );
+            
+            console.log('[AuthContext] Successfully triggered server-side demo cleanup');
+          } catch (cleanupError) {
+            console.warn('[AuthContext] Server cleanup function failed:', cleanupError);
+            // If server-side cleanup fails, we'll still have done the preference reset above
+          }
           
         } catch (error) {
-          console.error('Failed during demo user logout process:', error);
+          console.error('[AuthContext] Failed during demo user logout process:', error);
           // Continue with logout even if reset fails
+          
+          // Last resort fallback - try local reset
+          try {
+            await resetDemoUserSession();
+          } catch (e) {
+            console.error('[AuthContext] Local fallback reset also failed:', e);
+          }
         }
       }
       

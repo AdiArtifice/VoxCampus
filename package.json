@@ -10,7 +10,10 @@
     "web": "expo start --web",
     "build": "expo export --platform web",
     "test": "jest --watchAll",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "deploy-functions": "npm install archiver form-data && node ./scripts/api-deploy-functions.js",
+    "setup-schedule": "node ./scripts/setup-function-schedule.js",
+    "test-demo-functions": "node ./scripts/test-demo-functions.js"
   },
   "jest": {
     "preset": "jest-expo"
