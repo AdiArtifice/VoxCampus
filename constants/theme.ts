@@ -7,6 +7,7 @@ export const COLORS = {
   lightGray: '#EDEDF0',
   background: '#FAFAFB',
   text: '#000000',
+  textDark: '#333333', // Added for guest session modal
   error: '#C62828',
   success: '#1B5E20',
   darkBlue: '#1F6FEB',
