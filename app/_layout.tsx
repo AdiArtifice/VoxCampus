@@ -12,7 +12,6 @@ import {
 import Head from "expo-router/head";
 import React, { useEffect } from "react";
 import { AuthProvider, ProviderGuard } from "@/context/AuthContext";
-import { GuestSessionProvider } from "@/context/GuestSessionContext";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator } from "react-native";
@@ -61,11 +60,9 @@ export default function RootLayout() {
           </Head>
         )}
         <AuthProvider>
-          <GuestSessionProvider>
-            <ProviderGuard>
-              <Slot />
-            </ProviderGuard>
-          </GuestSessionProvider>
+          <ProviderGuard>
+            <Slot />
+          </ProviderGuard>
         </AuthProvider>
       </View>
     </SafeAreaProvider>
