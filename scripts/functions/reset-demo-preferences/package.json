@@ -1,7 +1,7 @@
 {
-  "name": "cleanup-demo-sessions",
+  "name": "reset-demo-preferences",
   "version": "1.0.0",
-  "description": "Appwrite function to clean up old demo session data",
+  "description": "Appwrite function to reset demo user preferences",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

@@ -10,14 +10,15 @@ Primary cleanup function that deletes tracking records and user-generated conten
 
 - **Execution**: Both scheduled (cron) and on-demand
 - **Permissions**: Requires full API key with database access
-- **Variables**:
-  - None (uses environment variables)
+- **Variables**: None (uses environment variables)
+- **Dependencies**: node-appwrite ^8.0.0
 
 ### 2. reset-demo-preferences
 
 Resets demo user preferences when they log out.
 
 - **Execution**: On-demand, triggered from frontend during logout
+- **Dependencies**: node-appwrite ^8.0.0
 - **Permissions**: Uses user JWT token for account API access
 - **Variables**:
   - None (uses JWT from request headers)
@@ -30,10 +31,27 @@ Triggers the cleanup function for a specific user.
 - **Permissions**: Requires API key with functions:execute access
 - **Variables**:
   - CLEANUP_FUNCTION_ID: ID of your cleanup function in Appwrite
+- **Dependencies**: node-appwrite ^8.0.0
 
 ## Deployment Instructions
 
 ### 1. Deploying to Appwrite
+
+#### Option 1: Using the Provided Scripts
+
+We've created deployment scripts to simplify the process:
+
+```bash
+# Deploy all functions at once
+node scripts/deploy-all-cleanup-functions.js
+
+# Or deploy individual functions
+node scripts/deploy-cleanup-function.js
+node scripts/deploy-reset-preferences.js
+node scripts/deploy-trigger-cleanup.js
+```
+
+#### Option 2: Using Appwrite CLI Directly
 
 For each function directory, use the Appwrite CLI:
 

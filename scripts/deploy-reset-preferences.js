@@ -1,13 +1,13 @@
-// Helper script to deploy the cleanup-demo-sessions function to Appwrite
+// Helper script to deploy the reset-demo-preferences function to Appwrite
 
 const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const functionPath = path.resolve(__dirname, 'functions/cleanup-demo-sessions');
-const functionId = 'cleanup_demo_sessions';
+const functionPath = path.resolve(__dirname, 'functions/reset-demo-preferences');
+const functionId = 'reset_demo_preferences';
 
-console.log('Deploying cleanup-demo-sessions function to Appwrite...');
+console.log('Deploying reset-demo-preferences function to Appwrite...');
 console.log(`Function path: ${functionPath}`);
 
 try {
@@ -37,7 +37,7 @@ try {
   console.log('Deployment result:');
   console.log(result);
   
-  console.log('Cleanup demo sessions function deployed successfully!');
+  console.log('Reset demo preferences function deployed successfully!');
 } catch (error) {
   console.error('Error deploying function:', error.message || error);
   process.exit(1);
